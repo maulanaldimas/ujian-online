@@ -3,17 +3,20 @@ import { useState, useEffect } from 'react';
 import { collection, getDocs, orderBy, query } from 'firebase/firestore';
 import { signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'firebase/auth';
 import { db, auth } from '../../firebase';
+import Link from 'next/link';
 
 export default function Dashboard() {
   const [peserta, setPeserta] = useState([]);
-  const [soalMap, setSoalMap] = useState({}); // BARU: { soalId: "teks pertanyaan" }
+  const [soalMap, setSoalMap] = useState({});
+  const [soalFullMap, setSoalFullMap] = useState({});
+  const [kunciMap, setKunciMap] = useState({});
   const [loadingData, setLoadingData] = useState(true);
   const [user, setUser] = useState(null);
   const [cekLoginSelesai, setCekLoginSelesai] = useState(false);
   const [emailInput, setEmailInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [errorLogin, setErrorLogin] = useState('');
-  const [pesertaTerpilih, setPesertaTerpilih] = useState(null); // BARU: untuk lihat detail jawaban
+  const [pesertaTerpilih, setPesertaTerpilih] = useState(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -25,22 +28,28 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!user) return;
-
     async function ambilData() {
-      // Ambil semua peserta
       const qPeserta = query(collection(db, 'pesertaUjian'), orderBy('waktuMulai', 'desc'));
       const snapshotPeserta = await getDocs(qPeserta);
-      const dataPeserta = snapshotPeserta.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
-      setPeserta(dataPeserta);
+      setPeserta(snapshotPeserta.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() })));
 
-      // BARU: ambil semua soal, buat "kamus" id -> teks pertanyaan
+      // BARU: simpan seluruh data soal (bukan cuma teks), supaya tahu mana yang pilihan ganda
       const qSoal = query(collection(db, 'soalUjian'), orderBy('urutan', 'asc'));
       const snapshotSoal = await getDocs(qSoal);
-      const map = {};
+      const mapSoal = {};
+      const mapTeks = {};
       snapshotSoal.docs.forEach((docSnap) => {
-        map[docSnap.id] = docSnap.data().teks;
+        mapSoal[docSnap.id] = docSnap.data();
+        mapTeks[docSnap.id] = docSnap.data().teks;
       });
-      setSoalMap(map);
+      setSoalFullMap(mapSoal);
+      setSoalMap(mapTeks);
+
+      // BARU: ambil kunci jawaban (HR sudah login, jadi diizinkan)
+      const snapshotKunci = await getDocs(collection(db, 'kunciJawaban'));
+      const mapKunci = {};
+      snapshotKunci.docs.forEach((docSnap) => { mapKunci[docSnap.id] = docSnap.data().jawabanBenar; });
+      setKunciMap(mapKunci);
 
       setLoadingData(false);
     }
@@ -62,94 +71,123 @@ export default function Dashboard() {
     return timestamp.toDate().toLocaleString('id-ID');
   }
 
-  if (!cekLoginSelesai) {
-    return <p style={{ textAlign: 'center', marginTop: 40 }}>Memuat...</p>;
+  function hitungSkor(peserta) {
+    let benar = 0;
+    let totalPG = 0;
+    Object.entries(soalFullMap).forEach(([soalId, soal]) => {
+      if (soal.tipe === 'pilihan_ganda' && kunciMap[soalId]) {
+        totalPG += 1;
+        if (peserta.jawaban?.[soalId] === kunciMap[soalId]) benar += 1;
+      }
+    });
+    return { benar, totalPG };
   }
+
+  const input = 'w-full p-2 mb-3 border border-gray-300 rounded text-gray-900 bg-white';
+  const btnUtama = 'px-4 py-2 bg-slate-800 text-white rounded hover:bg-slate-900 cursor-pointer';
+
+  if (!cekLoginSelesai) return <p className="text-center mt-10 text-gray-900">Memuat...</p>;
 
   if (!user) {
     return (
-      <main style={{ maxWidth: 400, margin: '80px auto', fontFamily: 'Arial', padding: 20 }}>
-        <h1>Login HR</h1>
+      <main className="max-w-sm mx-auto mt-20 p-5">
+        <h1 className="text-2xl font-bold text-gray-900 mb-4">Login HR</h1>
         <form onSubmit={handleLogin}>
           <input type="email" placeholder="Email" value={emailInput}
-            onChange={(e) => setEmailInput(e.target.value)}
-            style={{ width: '100%', padding: 8, marginBottom: 12, boxSizing: 'border-box' }} />
+            onChange={(e) => setEmailInput(e.target.value)} className={input} />
           <input type="password" placeholder="Password" value={passwordInput}
-            onChange={(e) => setPasswordInput(e.target.value)}
-            style={{ width: '100%', padding: 8, marginBottom: 12, boxSizing: 'border-box' }} />
-          {errorLogin && <p style={{ color: 'red' }}>{errorLogin}</p>}
-          <button type="submit" style={{ padding: '10px 20px', background: '#2c3e50', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
-            Masuk
-          </button>
+            onChange={(e) => setPasswordInput(e.target.value)} className={input} />
+          {errorLogin && <p className="text-red-600 mb-3">{errorLogin}</p>}
+          <button type="submit" className={btnUtama}>Masuk</button>
         </form>
       </main>
     );
   }
 
-  if (loadingData) {
-    return <p style={{ textAlign: 'center', marginTop: 40 }}>Memuat data...</p>;
-  }
+  if (loadingData) return <p className="text-center mt-10 text-gray-900">Memuat data...</p>;
 
-  // BARU: tampilan detail satu peserta (kalau sedang dipilih)
   if (pesertaTerpilih) {
     return (
-      <main style={{ maxWidth: 700, margin: '40px auto', fontFamily: 'Arial', padding: 20 }}>
-        <button onClick={() => setPesertaTerpilih(null)} style={{ marginBottom: 20, cursor: 'pointer', padding: '6px 12px' }}>
+      <main className="max-w-2xl mx-auto mt-10 p-5">
+        <button onClick={() => setPesertaTerpilih(null)} className="mb-5 px-3 py-1 border rounded cursor-pointer text-gray-900">
           ← Kembali ke daftar
         </button>
-        <h1>{pesertaTerpilih.nama}</h1>
-        <p>Email: {pesertaTerpilih.email} | No HP: {pesertaTerpilih.noHp || '-'}</p>
-        <p>Status: {pesertaTerpilih.status} | Mulai: {formatWaktu(pesertaTerpilih.waktuMulai)}</p>
-        <p style={{ color: pesertaTerpilih.totalPelanggaran > 0 ? 'red' : 'inherit', fontWeight: 'bold' }}>
+        <h1 className="text-2xl font-bold text-gray-900">{pesertaTerpilih.nama}</h1>
+        <p className="text-gray-700">Email: {pesertaTerpilih.email} | No HP: {pesertaTerpilih.noHp || '-'}</p>
+        <p className="text-gray-700">Status: {pesertaTerpilih.status} | Mulai: {formatWaktu(pesertaTerpilih.waktuMulai)}</p>
+        <p className={`font-bold ${pesertaTerpilih.totalPelanggaran > 0 ? 'text-red-600' : 'text-gray-900'}`}>
           Total pelanggaran terdeteksi: {pesertaTerpilih.totalPelanggaran ?? 0}
         </p>
-        <hr style={{ margin: '20px 0' }} />
-        <h2>Jawaban</h2>
-        {Object.entries(soalMap).map(([soalId, teksSoal]) => (
-          <div key={soalId} style={{ marginBottom: 16 }}>
-            <p style={{ fontWeight: 'bold', marginBottom: 4 }}>{teksSoal}</p>
-            <p style={{ background: '#f4f4f9', color: '#1a1a1a', padding: 10, borderRadius: 4 }}>
-              {pesertaTerpilih.jawaban?.[soalId] || <i>(tidak dijawab)</i>}
-            </p>
-          </div>
-        ))}
+        <hr className="my-5" />
+        <h2 className="text-xl font-bold text-gray-900 mb-2">Jawaban</h2>
+        {Object.entries(soalMap).map(([soalId, teksSoal]) => {
+          const soal = soalFullMap[soalId];
+          const jawabanPeserta = pesertaTerpilih.jawaban?.[soalId];
+          const kunci = kunciMap[soalId];
+          const isPG = soal?.tipe === 'pilihan_ganda';
+          const benar = isPG && kunci && jawabanPeserta === kunci;
+
+          return (
+            <div key={soalId} className="mb-4">
+              <p className="font-bold text-gray-900 mb-1">{teksSoal}</p>
+              <p className={`p-2 rounded ${isPG ? (benar ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800') : 'bg-gray-50 text-gray-900'}`}>
+                {jawabanPeserta || <i>(tidak dijawab)</i>}
+                {isPG && (benar ? ' ✓' : ' ✗')}
+              </p>
+              {isPG && !benar && kunci && (
+                <p className="text-sm text-green-700 mt-1">Jawaban benar: {kunci}</p>
+              )}
+            </div>
+          );
+        })}
       </main>
     );
   }
 
   return (
-    <main style={{ maxWidth: 1000, margin: '40px auto', fontFamily: 'Arial', padding: 20 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1>Dashboard Hasil Ujian</h1>
-        <button onClick={() => signOut(auth)} style={{ padding: '8px 16px', cursor: 'pointer' }}>
-          Logout
-        </button>
+    <main className="max-w-4xl mx-auto mt-10 p-5">
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold text-gray-900">Dashboard Hasil Ujian</h1>
+        <div className="text-gray-900">
+          <Link href="/dashboard/soal" className="mr-3 underline">Kelola Soal</Link>
+          <Link href="/dashboard/pengaturan" className="mr-3 underline">Pengaturan</Link>
+          <button onClick={() => signOut(auth)} className="px-4 py-2 border rounded cursor-pointer">
+            Logout
+          </button>
+        </div>
       </div>
-      <p>Login sebagai: {user.email} — Total peserta: {peserta.length}</p>
+      <p className="text-gray-700 mb-4">Login sebagai: {user.email} — Total peserta: {peserta.length}</p>
 
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 20 }}>
+      <table className="w-full border-collapse">
         <thead>
-          <tr style={{ background: '#2c3e50', color: 'white' }}>
-            <th style={thTd}>Nama</th>
-            <th style={thTd}>Email</th>
-            <th style={thTd}>Status</th>
-            <th style={thTd}>Pelanggaran</th>
-            <th style={thTd}>Waktu Mulai</th>
-            <th style={thTd}></th>
+          <tr className="bg-slate-800 text-white">
+            <th className="p-2 text-left text-sm">Nama</th>
+            <th className="p-2 text-left text-sm">Email</th>
+            <th className="p-2 text-left text-sm">Status</th>
+            <th className="p-2 text-left text-sm">Pelanggaran</th>
+            <th className="p-2 text-left text-sm">Skor</th>
+            <th className="p-2 text-left text-sm">Waktu Mulai</th>
+            <th className="p-2 text-left text-sm"></th>
           </tr>
         </thead>
         <tbody>
           {peserta.map((p) => (
-            <tr key={p.id} style={{ borderBottom: '1px solid #ddd' }}>
-              <td style={thTd}>{p.nama}</td>
-              <td style={thTd}>{p.email}</td>
-              <td style={thTd}>{p.status}</td>
-              <td style={{ ...thTd, color: p.totalPelanggaran > 0 ? 'red' : 'inherit', fontWeight: p.totalPelanggaran > 0 ? 'bold' : 'normal' }}>
+            <tr key={p.id} className="border-b border-gray-200">
+              <td className="p-2 text-sm text-gray-900">{p.nama}</td>
+              <td className="p-2 text-sm text-gray-900">{p.email}</td>
+              <td className="p-2 text-sm text-gray-900">{p.status}</td>
+              <td className={`p-2 text-sm ${p.totalPelanggaran > 0 ? 'text-red-600 font-bold' : 'text-gray-900'}`}>
                 {p.totalPelanggaran ?? 0}
               </td>
-              <td style={thTd}>{formatWaktu(p.waktuMulai)}</td>
-              <td style={thTd}>
-                <button onClick={() => setPesertaTerpilih(p)} style={{ cursor: 'pointer', padding: '4px 10px' }}>
+              <td className="p-2 text-sm text-gray-900">
+                {(() => {
+                  const { benar, totalPG } = hitungSkor(p);
+                  return totalPG > 0 ? `${benar}/${totalPG} (${Math.round((benar / totalPG) * 100)}%)` : '—';
+                })()}
+              </td>
+              <td className="p-2 text-sm text-gray-900">{formatWaktu(p.waktuMulai)}</td>
+              <td className="p-2 text-sm">
+                <button onClick={() => setPesertaTerpilih(p)} className="px-2 py-1 border rounded cursor-pointer text-gray-900">
                   Lihat Jawaban
                 </button>
               </td>
@@ -160,5 +198,3 @@ export default function Dashboard() {
     </main>
   );
 }
-
-const thTd = { padding: 10, textAlign: 'left', fontSize: 14 };

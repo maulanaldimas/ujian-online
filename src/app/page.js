@@ -1,10 +1,21 @@
 'use client';
+import Image from 'next/image';
+import { doc as docRef2, getDoc } from 'firebase/firestore';
 import { useState, useEffect, useRef } from 'react';
 import { FaceDetector, FilesetResolver } from '@mediapipe/tasks-vision';
 import { collection, addDoc, updateDoc, doc, serverTimestamp, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 
-const DURASI_UJIAN_DETIK = 15 * 60; // BARU: 15 menit, ubah sesuai kebutuhan
+const DURASI_UJIAN_DETIK = 60 * 60;
+
+function acakUrutan(array) {
+  const hasil = [...array];
+  for (let i = hasil.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [hasil[i], hasil[j]] = [hasil[j], hasil[i]];
+  }
+  return hasil;
+}
 
 export default function Home() {
   const [step, setStep] = useState('form');
@@ -14,12 +25,13 @@ export default function Home() {
   const [statusWajah, setStatusWajah] = useState('Memuat AI deteksi wajah...');
   const [statusAudio, setStatusAudio] = useState('Memantau suara...');
   const [sedangMenyimpan, setSedangMenyimpan] = useState(false);
-
-  // BARU: state untuk banyak soal
   const [daftarSoal, setDaftarSoal] = useState([]);
   const [soalIndex, setSoalIndex] = useState(0);
-  const [jawabanMap, setJawabanMap] = useState({}); // { soalId: "jawaban teks" }
+  const [jawabanMap, setJawabanMap] = useState({});
   const [waktuTersisa, setWaktuTersisa] = useState(DURASI_UJIAN_DETIK);
+  const [keluarFullscreen, setKeluarFullscreen] = useState(false);
+  const [pengaturanProctoring, setPengaturanProctoring] = useState({ kameraAktif: true, audioAktif: true });
+  const [pengaturanSiap, setPengaturanSiap] = useState(false);
 
   const videoRef = useRef(null);
   const faceDetectorRef = useRef(null);
@@ -30,28 +42,44 @@ export default function Home() {
   const audioContextRef = useRef(null);
   const docIdRef = useRef(null);
   const pelanggaranRef = useRef(0);
-  const jawabanMapRef = useRef({}); // BARU: salinan terbaru untuk dipakai saat auto-submit
-  const sudahSubmitRef = useRef(false); // BARU: cegah submit dobel
+  const jawabanMapRef = useRef({});
+  const sudahSubmitRef = useRef(false);
+
+  useEffect(() => { pelanggaranRef.current = pelanggaran; }, [pelanggaran]);
+  useEffect(() => { jawabanMapRef.current = jawabanMap; }, [jawabanMap]);
 
   useEffect(() => {
-    pelanggaranRef.current = pelanggaran;
-  }, [pelanggaran]);
+    if (step !== 'ujian') return;
+    async function ambilPengaturan() {
+      try {
+        const snap = await getDoc(docRef2(db, 'pengaturan', 'proctoring'));
+        if (snap.exists()) {
+          const data = snap.data();
+          setPengaturanProctoring({
+            kameraAktif: data.kameraAktif ?? true,
+            audioAktif: data.audioAktif ?? true,
+          });
+        }
+      } catch (err) {
+        console.error('Gagal ambil pengaturan proctoring:', err);
+      } finally {
+        setPengaturanSiap(true);
+      }
+    }
+    ambilPengaturan();
+  }, [step]);
 
-  useEffect(() => {
-    jawabanMapRef.current = jawabanMap;
-  }, [jawabanMap]);
-
-  // BARU: ambil daftar soal dari Firestore saat masuk halaman ujian
   useEffect(() => {
     if (step !== 'ujian') return;
     async function ambilSoal() {
       try {
         const q = query(collection(db, 'soalUjian'), orderBy('urutan', 'asc'));
         const snapshot = await getDocs(q);
-        console.log('Jumlah soal ditemukan:', snapshot.docs.length);
         const data = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
-        console.log('Isi soal:', data);
-        setDaftarSoal(data);
+        const teracak = acakUrutan(data);
+        // DEBUG: cek di Console (F12) apakah urutan ini berubah tiap kali ujian dimulai
+        console.log('Urutan soal sesi ini:', teracak.map((s) => s.teks));
+        setDaftarSoal(teracak);
       } catch (err) {
         console.error('Gagal ambil soal:', err);
       }
@@ -59,16 +87,13 @@ export default function Home() {
     ambilSoal();
   }, [step]);
 
-  // BARU: timer hitung mundur
   useEffect(() => {
     if (step !== 'ujian') return;
     const interval = setInterval(() => {
       setWaktuTersisa((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
-          if (!sudahSubmitRef.current) {
-            submitAkhir(); // waktu habis, otomatis submit
-          }
+          if (!sudahSubmitRef.current) submitAkhir();
           return 0;
         }
         return prev - 1;
@@ -77,27 +102,69 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [step]);
 
-  // Deteksi kalau peserta pindah tab / minimize window selama ujian
   useEffect(() => {
     if (step !== 'ujian') return;
     const handleVisibility = () => {
-      if (document.hidden) {
-        setPelanggaran((prev) => prev + 1);
-      }
+      if (document.hidden) setPelanggaran((prev) => prev + 1);
     };
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [step]);
 
-  // Nyalakan webcam + mic + load AI + mulai deteksi
   useEffect(() => {
     if (step !== 'ujian') return;
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement) {
+        setKeluarFullscreen(true);
+        setPelanggaran((prev) => prev + 1);
+      } else {
+        setKeluarFullscreen(false);
+      }
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, [step]);
+
+  useEffect(() => {
+    if (step !== 'ujian') return;
+    const cegah = (e) => e.preventDefault();
+    const handlePaste = (e) => { e.preventDefault(); setPelanggaran((prev) => prev + 1); };
+    const handleKeyDown = (e) => {
+      const kombinasiTerlarang =
+        (e.ctrlKey && ['c', 'v', 'x', 'u', 'p', 'f'].includes(e.key.toLowerCase())) ||
+        e.key === 'F12' ||
+        (e.ctrlKey && e.shiftKey && ['i', 'j', 'c'].includes(e.key.toLowerCase()));
+      if (kombinasiTerlarang) e.preventDefault();
+    };
+    document.addEventListener('contextmenu', cegah);
+    document.addEventListener('copy', cegah);
+    document.addEventListener('cut', cegah);
+    document.addEventListener('paste', handlePaste);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('contextmenu', cegah);
+      document.removeEventListener('copy', cegah);
+      document.removeEventListener('cut', cegah);
+      document.removeEventListener('paste', handlePaste);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [step]);
+
+  useEffect(() => {
+    if (step !== 'ujian' || !pengaturanSiap) return; // BARU: tunggu pengaturan siap dulu
     let stream;
+    const { kameraAktif, audioAktif } = pengaturanProctoring;
 
     async function setup() {
+      // BARU: kalau kamera & audio dua-duanya mati, tidak perlu minta izin apapun
+      if (!kameraAktif && !audioAktif) return;
+
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        if (videoRef.current) {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: kameraAktif,
+          audio: audioAktif,
+        });
+        if (kameraAktif && videoRef.current) {
           videoRef.current.srcObject = stream;
           await videoRef.current.play();
         }
@@ -106,30 +173,37 @@ export default function Home() {
         return;
       }
 
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      const source = audioContext.createMediaStreamSource(stream);
-      const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 512;
-      source.connect(analyser);
-      audioContextRef.current = audioContext;
-      analyserRef.current = analyser;
+      // BARU: hanya setup audio analyser kalau audio aktif
+      if (audioAktif) {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioContext.createMediaStreamSource(stream);
+        const analyser = audioContext.createAnalyser();
+        analyser.fftSize = 512;
+        source.connect(analyser);
+        audioContextRef.current = audioContext;
+        analyserRef.current = analyser;
+      }
 
-      const vision = await FilesetResolver.forVisionTasks(
-        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm'
-      );
-      faceDetectorRef.current = await FaceDetector.createFromOptions(vision, {
-        baseOptions: {
-          modelAssetPath:
-            'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite',
-        },
-        runningMode: 'VIDEO',
-      });
+      // BARU: hanya load AI wajah kalau kamera aktif
+      if (kameraAktif) {
+        const vision = await FilesetResolver.forVisionTasks(
+          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm'
+        );
+        faceDetectorRef.current = await FaceDetector.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath:
+              'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite',
+          },
+          runningMode: 'VIDEO',
+        });
+        setStatusWajah('Memantau...');
+      }
 
-      setStatusWajah('Memantau...');
       deteksiLoop();
     }
 
     function cekAudio() {
+      if (!audioAktif) return; // BARU
       const analyser = analyserRef.current;
       if (!analyser) return;
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
@@ -147,8 +221,14 @@ export default function Home() {
     }
 
     function deteksiLoop() {
-      if (!videoRef.current || !faceDetectorRef.current) return;
       cekAudio();
+
+      if (!kameraAktif || !videoRef.current || !faceDetectorRef.current) {
+        // BARU: kalau kamera mati, tetap lanjut loop (untuk audio saja), tapi skip deteksi wajah
+        if (audioAktif) animasiRef.current = requestAnimationFrame(deteksiLoop);
+        return;
+      }
+
       if (videoRef.current.readyState < 2) {
         animasiRef.current = requestAnimationFrame(deteksiLoop);
         return;
@@ -180,13 +260,18 @@ export default function Home() {
       if (audioContextRef.current) audioContextRef.current.close();
       if (stream) stream.getTracks().forEach((track) => track.stop());
     };
-  }, [step]);
+  }, [step, pengaturanSiap, pengaturanProctoring]);
 
   async function handleFormSubmit(e) {
     e.preventDefault();
     if (!dataDiri.nama || !dataDiri.email) {
       alert('Nama dan email wajib diisi');
       return;
+    }
+    try {
+      await document.documentElement.requestFullscreen();
+    } catch (err) {
+      console.error('Gagal masuk fullscreen:', err);
     }
     setSedangMenyimpan(true);
     try {
@@ -206,23 +291,43 @@ export default function Home() {
     setSedangMenyimpan(false);
   }
 
-  // BARU: ganti jawaban soal yang sedang aktif
   function handleJawabanChange(soalId, teks) {
     setJawabanMap((prev) => ({ ...prev, [soalId]: teks }));
   }
 
-  // BARU: pindah ke soal berikutnya, atau submit kalau ini soal terakhir
-  function handleLanjut() {
-    if (soalIndex < daftarSoal.length - 1) {
-      setSoalIndex((prev) => prev + 1);
-    } else {
-      submitAkhir();
+  // BARU: navigasi bebas, tidak lagi otomatis submit di soal terakhir
+  function soalBerikutnya() {
+    if (soalIndex < daftarSoal.length - 1) setSoalIndex((prev) => prev + 1);
+  }
+  function soalSebelumnya() {
+    if (soalIndex > 0) setSoalIndex((prev) => prev - 1);
+  }
+  function lompatKeSoal(index) {
+    setSoalIndex(index);
+  }
+
+  async function kembaliFullscreen() {
+    try {
+      await document.documentElement.requestFullscreen();
+    } catch (err) {
+      console.error('Gagal masuk fullscreen:', err);
     }
   }
 
-  // BARU: fungsi submit dipisah supaya bisa dipanggil manual ATAU otomatis saat waktu habis
+  // BARU: submit sekarang bisa dipanggil dari soal manapun, dengan konfirmasi kalau ada yang belum dijawab
+  function konfirmasiSubmit() {
+    const jumlahBelumJawab = daftarSoal.filter((s) => !jawabanMap[s.id] || jawabanMap[s.id] === '').length;
+    if (jumlahBelumJawab > 0) {
+      const lanjut = confirm(
+        `Masih ada ${jumlahBelumJawab} soal yang belum dijawab. Yakin ingin mengirim jawaban sekarang?`
+      );
+      if (!lanjut) return;
+    }
+    submitAkhir();
+  }
+
   async function submitAkhir() {
-    if (sudahSubmitRef.current) return; // cegah submit dobel
+    if (sudahSubmitRef.current) return;
     sudahSubmitRef.current = true;
     setSedangMenyimpan(true);
     try {
@@ -232,11 +337,12 @@ export default function Home() {
         status: 'selesai',
         waktuSelesai: serverTimestamp(),
       });
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
       setStep('selesai');
     } catch (err) {
       alert('Gagal menyimpan jawaban ke server. Cek koneksi internet lalu coba lagi.');
       console.error(err);
-      sudahSubmitRef.current = false; // biar bisa dicoba lagi kalau gagal
+      sudahSubmitRef.current = false;
     }
     setSedangMenyimpan(false);
   }
@@ -247,28 +353,37 @@ export default function Home() {
     return `${menit}:${sisaDetik.toString().padStart(2, '0')}`;
   }
 
-  const kotak = { maxWidth: 500, margin: '40px auto', fontFamily: 'Arial', padding: 20 };
-  const inputStyle = { width: '100%', padding: 8, marginBottom: 12, boxSizing: 'border-box' };
-  const btnStyle = { padding: '10px 20px', background: '#2c3e50', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' };
+  const input = 'w-full p-2 mb-3 border border-gray-300 rounded text-gray-900 bg-white';
+  const btnUtama = 'px-4 py-2 bg-slate-800 text-white rounded hover:bg-slate-900 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer';
+  const btnSekunder = 'px-4 py-2 border border-gray-300 text-gray-900 rounded hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer';
 
   if (step === 'form') {
     return (
-      <main style={kotak}>
-        <h1>Data Diri Peserta</h1>
+      <main className="max-w-md mx-auto mt-10 p-5">
+        <div className="flex justify-center mb-4">
+          <Image src="/logo.png" alt="Logo Sokka Fiber" width={300} height={300} priority />
+        </div>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2 text-center">Data Diri Peserta</h1>
+        <p className="text-xs text-gray-500 mb-4">
+          Ujian akan berjalan dalam mode layar penuh. Pastikan kamera & mikrofon Anda berfungsi.
+        </p>
         <form onSubmit={handleFormSubmit}>
-          <label>Nama Lengkap</label>
-          <input style={inputStyle} value={dataDiri.nama}
+          <label className="block font-bold text-gray-900 mb-1">Nama Lengkap</label>
+          <input className={input} value={dataDiri.nama}
             onChange={(e) => setDataDiri({ ...dataDiri, nama: e.target.value })} />
-          <label>Email</label>
-          <input type="email" style={inputStyle} value={dataDiri.email}
+
+          <label className="block font-bold text-gray-900 mb-1">Email</label>
+          <input type="email" className={input} value={dataDiri.email}
             onChange={(e) => setDataDiri({ ...dataDiri, email: e.target.value })} />
-          <label>No HP</label>
-          <input type="tel" style={inputStyle} value={dataDiri.noHp}
+
+          <label className="block font-bold text-gray-900 mb-1">No HP</label>
+          <input type="tel" className={input} value={dataDiri.noHp}
             onChange={(e) => {
               const hanyaAngka = e.target.value.replace(/[^0-9]/g, '');
               setDataDiri({ ...dataDiri, noHp: hanyaAngka });
             }} />
-          <button type="submit" style={btnStyle} disabled={sedangMenyimpan}>
+
+          <button type="submit" className={btnUtama} disabled={sedangMenyimpan}>
             {sedangMenyimpan ? 'Menyimpan...' : 'Mulai Ujian'}
           </button>
         </form>
@@ -277,59 +392,153 @@ export default function Home() {
   }
 
   if (step === 'ujian') {
-    // BARU: tunggu soal selesai dimuat
     if (daftarSoal.length === 0) {
-      return <p style={{ textAlign: 'center', marginTop: 40 }}>Memuat soal...</p>;
+      return <p className="text-center mt-10 text-gray-900">Memuat soal...</p>;
     }
 
     const soalSekarang = daftarSoal[soalIndex];
+    const isSoalTerakhir = soalIndex === daftarSoal.length - 1;
+    const jumlahDijawab = daftarSoal.filter((s) => jawabanMap[s.id] && jawabanMap[s.id] !== '').length;
 
     return (
-      <main style={kotak}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h1>Ujian Rekrutmen</h1>
-          <span style={{ fontWeight: 'bold', color: waktuTersisa < 60 ? 'red' : 'inherit' }}>
+      <main className="max-w-4xl mx-auto mt-10 p-5">
+        {keluarFullscreen && (
+          <div className="bg-red-50 border-2 border-red-500 p-4 rounded-lg mb-4 text-center">
+            <p className="text-red-600 font-bold">
+              ⚠ Anda keluar dari mode layar penuh. Ini tercatat sebagai pelanggaran.
+            </p>
+            <button onClick={kembaliFullscreen} className={`${btnUtama} mt-2`}>
+              Kembali ke Layar Penuh
+            </button>
+          </div>
+        )}
+
+        <div className="flex justify-between items-center mb-3">
+          <div className="flex items-center gap-3">
+            <Image src="/logo.png" alt="Logo Sokka Fiber" width={44} height={44} priority />
+            <h1 className="text-2xl font-bold text-gray-900">Assesment Test</h1>
+          </div>
+          <span className={`font-bold ${waktuTersisa < 60 ? 'text-red-600' : 'text-gray-900'}`}>
             ⏱ {formatWaktu(waktuTersisa)}
           </span>
         </div>
-        <p>Peserta: <b>{dataDiri.nama}</b></p>
 
-        {errorKamera && <p style={{ color: 'red' }}>{errorKamera}</p>}
+        {/* Layout 2 kolom: konten utama + sidebar navigasi */}
+        <div className="flex flex-col md:flex-row gap-6">
 
-        <video ref={videoRef} autoPlay muted playsInline
-          style={{ width: 200, borderRadius: 8, background: '#000' }} />
-        <p style={{ fontSize: 14, color: statusWajah.includes('⚠') ? 'red' : 'green' }}>{statusWajah}</p>
-        <p style={{ fontSize: 14, color: statusAudio.includes('⚠') ? 'red' : 'green' }}>{statusAudio}</p>
+          {/* KOLOM KIRI: konten ujian */}
+          <div className="flex-1 min-w-0">
+            <p className="text-gray-900 mb-2">Peserta: <b>{dataDiri.nama}</b></p>
 
-        {pelanggaran > 0 && (
-          <p style={{ color: 'red' }}>⚠ Total pelanggaran terdeteksi: {pelanggaran}</p>
-        )}
+            {errorKamera && <p className="text-red-600 mb-2">{errorKamera}</p>}
 
-        {/* BARU: progress soal */}
-        <p style={{ color: '#666', fontSize: 14 }}>Soal {soalIndex + 1} dari {daftarSoal.length}</p>
-        <p>{soalSekarang.teks}</p>
-        <textarea
-          rows={4}
-          style={{ ...inputStyle, resize: 'vertical' }}
-          value={jawabanMap[soalSekarang.id] || ''}
-          onChange={(e) => handleJawabanChange(soalSekarang.id, e.target.value)}
-        />
-        <button onClick={handleLanjut} style={btnStyle} disabled={sedangMenyimpan}>
-          {sedangMenyimpan
-            ? 'Menyimpan...'
-            : soalIndex < daftarSoal.length - 1
-            ? 'Soal Berikutnya'
-            : 'Selesai & Kirim'}
-        </button>
+            {pengaturanProctoring.kameraAktif && (
+              <>
+                <video ref={videoRef} autoPlay muted playsInline
+                  className="w-[200px] rounded-lg bg-black mb-2" />
+                <p className={`text-sm mb-1 ${statusWajah.includes('⚠') ? 'text-red-600' : 'text-green-600'}`}>{statusWajah}</p>
+              </>
+            )}
+            {pengaturanProctoring.audioAktif && (
+              <p className={`text-sm mb-2 ${statusAudio.includes('⚠') ? 'text-red-600' : 'text-green-600'}`}>{statusAudio}</p>
+            )}
+
+            {pelanggaran > 0 && (
+              <p className="text-red-600 font-bold mb-2">⚠ Total pelanggaran terdeteksi: {pelanggaran}</p>
+            )}
+
+            <p className="text-gray-500 text-sm">Soal {soalIndex + 1} dari {daftarSoal.length}</p>
+            <p className="text-gray-900 mb-2">{soalSekarang.teks}</p>
+
+            {soalSekarang.tipe === 'pilihan_ganda' ? (
+              <div className="mb-3">
+                {(soalSekarang.pilihan || []).map((opsi, i) => (
+                  <label key={i} className="block p-2 mb-1 bg-gray-50 rounded cursor-pointer text-gray-900">
+                    <input
+                      type="radio"
+                      name={`soal-${soalSekarang.id}`}
+                      checked={jawabanMap[soalSekarang.id] === opsi}
+                      onChange={() => handleJawabanChange(soalSekarang.id, opsi)}
+                      className="mr-2"
+                    />
+                    {opsi}
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <textarea
+                rows={4}
+                className={`${input} resize-y`}
+                value={jawabanMap[soalSekarang.id] || ''}
+                onChange={(e) => handleJawabanChange(soalSekarang.id, e.target.value)}
+              />
+            )}
+
+            <div className="flex justify-between items-center mt-4">
+              <button onClick={soalSebelumnya} className={btnSekunder} disabled={soalIndex === 0 || sedangMenyimpan}>
+                ← Sebelumnya
+              </button>
+              <button onClick={soalBerikutnya} className={btnSekunder} disabled={isSoalTerakhir || sedangMenyimpan}>
+                Berikutnya →
+              </button>
+            </div>
+
+            <button onClick={konfirmasiSubmit} className={`${btnUtama} w-full mt-4`} disabled={sedangMenyimpan}>
+              {sedangMenyimpan ? 'Menyimpan...' : 'Kirim Semua Jawaban'}
+            </button>
+          </div>
+
+          {/* KOLOM KANAN: sidebar navigasi soal */}
+          <div className="w-full md:w-56 shrink-0">
+            <div className="md:sticky md:top-5 bg-gray-50 border border-gray-200 rounded-lg p-4">
+              <p className="text-sm font-bold text-gray-900 mb-1">Navigasi Soal</p>
+              <p className="text-xs text-gray-500 mb-3">{jumlahDijawab} dari {daftarSoal.length} terjawab</p>
+
+              <div className="grid grid-cols-5 gap-2">
+                {daftarSoal.map((s, i) => {
+                  const sudahDijawab = jawabanMap[s.id] && jawabanMap[s.id] !== '';
+                  const aktif = i === soalIndex;
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => lompatKeSoal(i)}
+                      className={`w-9 h-9 rounded-full text-sm font-bold border-2 cursor-pointer
+                        ${aktif ? 'bg-slate-800 text-white border-slate-800' : ''}
+                        ${!aktif && sudahDijawab ? 'bg-green-100 text-green-800 border-green-400' : ''}
+                        ${!aktif && !sudahDijawab ? 'bg-white text-gray-500 border-gray-300' : ''}
+                      `}
+                      title={sudahDijawab ? 'Sudah dijawab' : 'Belum dijawab'}
+                    >
+                      {i + 1}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-gray-200 text-xs text-gray-500 space-y-1">
+                <p className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-slate-800 inline-block" /> Sedang dilihat</p>
+                <p className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-green-100 border border-green-400 inline-block" /> Sudah dijawab</p>
+                <p className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-white border border-gray-300 inline-block" /> Belum dijawab</p>
+              </div>
+            </div>
+          </div>
+
+        </div>
       </main>
     );
   }
 
   return (
-    <main style={kotak}>
-      <h1>Ujian Selesai</h1>
-      <p>Terima kasih, {dataDiri.nama}. Jawaban kamu sudah kami terima.</p>
-      <p>Hasil akan diumumkan oleh tim HR melalui email.</p>
+    <main className="max-w-4xl mx-auto mt-10 p-5">
+      <h1 className="text-2xl font-bold text-gray-900 mb-2 text-center">ASSESSMENT SELESAI</h1>
+      <br />
+      <p className="text-gray-900">Terima kasih {dataDiri.nama}, atas partisipasi dan waktu yang telah Anda luangkan untuk mengikuti Assessment Online PT Sokkatama.</p>
+      <br />
+      <p className="text-gray-900">Jawaban Anda telah berhasil tersimpan dalam sistem dan akan diproses oleh tim Human Resources sesuai dengan tahapan rekrutmen maupun evaluasi yang berlaku.</p>
+      <br />
+      <p className="text-gray-900">Seluruh hasil assessment akan dijaga kerahasiaannya dan digunakan sebagai salah satu bahan pertimbangan dalam proses penilaian kompetensi.</p>
+      <br />
+      <p className="text-gray-900">Kami mengucapkan terima kasih atas komitmen, kejujuran, dan profesionalisme Anda selama mengikuti assessment.</p>
     </main>
   );
 }
