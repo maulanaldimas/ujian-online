@@ -19,7 +19,7 @@ function acakUrutan(array) {
 
 export default function Home() {
   const [step, setStep] = useState('form');
-  const [dataDiri, setDataDiri] = useState({ nama: '', email: '', noHp: '' });
+  const [dataDiri, setDataDiri] = useState({ nama: '', email: '', noHp: '', lokasiKerja: '', nikKtp: '' });
   const [pelanggaran, setPelanggaran] = useState(0);
   const [errorKamera, setErrorKamera] = useState('');
   const [statusWajah, setStatusWajah] = useState('Memuat AI deteksi wajah...');
@@ -264,8 +264,8 @@ export default function Home() {
 
   async function handleFormSubmit(e) {
     e.preventDefault();
-    if (!dataDiri.nama || !dataDiri.email) {
-      alert('Nama dan email wajib diisi');
+    if (!dataDiri.nama || !dataDiri.email || !dataDiri.noHp || !dataDiri.lokasiKerja || !dataDiri.nikKtp) {
+      alert('Semua kolom wajib diisi.');
       return;
     }
     try {
@@ -279,6 +279,8 @@ export default function Home() {
         nama: dataDiri.nama,
         email: dataDiri.email,
         noHp: dataDiri.noHp,
+        lokasiKerja: dataDiri.lokasiKerja,
+        nikKtp: dataDiri.nikKtp,
         status: 'sedang_ujian',
         waktuMulai: serverTimestamp(),
       });
@@ -364,8 +366,8 @@ export default function Home() {
           <Image src="/logo.png" alt="Logo Sokka Fiber" width={300} height={300} priority />
         </div>
         <h1 className="text-2xl font-bold text-gray-900 mb-2 text-center">Data Diri Peserta</h1>
-        <p className="text-xs text-gray-500 mb-4">
-          Ujian akan berjalan dalam mode layar penuh. Pastikan kamera & mikrofon Anda berfungsi.
+        <p className="text-xs text-gray-700 mb-4">
+          Ujian akan berjalan dalam mode layar penuh. Pastikan untuk tidak keluar dari mode layar penuh. Jika keluar dari mode layar penuh, ini akan tercatat sebagai pelanggaran.
         </p>
         <form onSubmit={handleFormSubmit}>
           <label className="block font-bold text-gray-900 mb-1">Nama Lengkap</label>
@@ -381,6 +383,17 @@ export default function Home() {
             onChange={(e) => {
               const hanyaAngka = e.target.value.replace(/[^0-9]/g, '');
               setDataDiri({ ...dataDiri, noHp: hanyaAngka });
+            }} />
+
+          <label className="block font-bold text-gray-900 mb-1">Lokasi Kerja</label>
+          <input className={input} value={dataDiri.lokasiKerja}
+            onChange={(e) => setDataDiri({ ...dataDiri, lokasiKerja: e.target.value })} />
+
+          <label className="block font-bold text-gray-900 mb-1">NIK KTP</label>
+          <input type="tel" className={input} value={dataDiri.nikKtp}
+            onChange={(e) => {
+              const hanyaAngka = e.target.value.replace(/[^0-9]/g, '');
+              setDataDiri({ ...dataDiri, nikKtp: hanyaAngka });
             }} />
 
           <button type="submit" className={btnUtama} disabled={sedangMenyimpan}>
@@ -401,9 +414,9 @@ export default function Home() {
     const jumlahDijawab = daftarSoal.filter((s) => jawabanMap[s.id] && jawabanMap[s.id] !== '').length;
 
     return (
-      <main className="max-w-4xl mx-auto mt-10 p-5">
+      <main className="min-h-screen">
         {keluarFullscreen && (
-          <div className="bg-red-50 border-2 border-red-500 p-4 rounded-lg mb-4 text-center">
+          <div className="max-w-2xl mx-auto mt-5 bg-red-50 border-2 border-red-500 p-4 rounded-lg text-center">
             <p className="text-red-600 font-bold">
               ⚠ Anda keluar dari mode layar penuh. Ini tercatat sebagai pelanggaran.
             </p>
@@ -413,116 +426,143 @@ export default function Home() {
           </div>
         )}
 
-        <div className="flex justify-between items-center mb-3">
-          <div className="flex items-center gap-3">
-            <Image src="/logo.png" alt="Logo Sokka Fiber" width={44} height={44} priority />
-            <h1 className="text-2xl font-bold text-gray-900">Assesment Test</h1>
-          </div>
-          <span className={`font-bold ${waktuTersisa < 60 ? 'text-red-600' : 'text-gray-900'}`}>
-            ⏱ {formatWaktu(waktuTersisa)}
-          </span>
+        {/* PANEL KIRI: logo, fixed ke viewport, tidak bergerak sama sekali */}
+        <div className="hidden lg:flex lg:flex-col lg:items-center lg:fixed lg:left-8 lg:top-6 lg:w-[430px]">
+          <Image src="/logo.png" alt="Logo Sokka Fiber" width={1500} height={1500} priority />
         </div>
 
-        {/* Layout 2 kolom: konten utama + sidebar navigasi */}
-        <div className="flex flex-col md:flex-row gap-6">
+        {/* PANEL KANAN: navigasi soal, fixed ke viewport, tidak bergerak sama sekali */}
+        <div className="hidden lg:block lg:fixed lg:right-8 lg:top-6 lg:w-[240px]">
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <p className="text-sm font-bold text-gray-900 mb-1">Navigasi Soal</p>
+            <p className="text-xs text-gray-500 mb-3">{jumlahDijawab} dari {daftarSoal.length} terjawab</p>
 
-          {/* KOLOM KIRI: konten ujian */}
-          <div className="flex-1 min-w-0">
-            <p className="text-gray-900 mb-2">Peserta: <b>{dataDiri.nama}</b></p>
-
-            {errorKamera && <p className="text-red-600 mb-2">{errorKamera}</p>}
-
-            {pengaturanProctoring.kameraAktif && (
-              <>
-                <video ref={videoRef} autoPlay muted playsInline
-                  className="w-[200px] rounded-lg bg-black mb-2" />
-                <p className={`text-sm mb-1 ${statusWajah.includes('⚠') ? 'text-red-600' : 'text-green-600'}`}>{statusWajah}</p>
-              </>
-            )}
-            {pengaturanProctoring.audioAktif && (
-              <p className={`text-sm mb-2 ${statusAudio.includes('⚠') ? 'text-red-600' : 'text-green-600'}`}>{statusAudio}</p>
-            )}
-
-            {pelanggaran > 0 && (
-              <p className="text-red-600 font-bold mb-2">⚠ Total pelanggaran terdeteksi: {pelanggaran}</p>
-            )}
-
-            <p className="text-gray-500 text-sm">Soal {soalIndex + 1} dari {daftarSoal.length}</p>
-            <p className="text-gray-900 mb-2">{soalSekarang.teks}</p>
-
-            {soalSekarang.tipe === 'pilihan_ganda' ? (
-              <div className="mb-3">
-                {(soalSekarang.pilihan || []).map((opsi, i) => (
-                  <label key={i} className="block p-2 mb-1 bg-gray-50 rounded cursor-pointer text-gray-900">
-                    <input
-                      type="radio"
-                      name={`soal-${soalSekarang.id}`}
-                      checked={jawabanMap[soalSekarang.id] === opsi}
-                      onChange={() => handleJawabanChange(soalSekarang.id, opsi)}
-                      className="mr-2"
-                    />
-                    {opsi}
-                  </label>
-                ))}
-              </div>
-            ) : (
-              <textarea
-                rows={4}
-                className={`${input} resize-y`}
-                value={jawabanMap[soalSekarang.id] || ''}
-                onChange={(e) => handleJawabanChange(soalSekarang.id, e.target.value)}
-              />
-            )}
-
-            <div className="flex justify-between items-center mt-4">
-              <button onClick={soalSebelumnya} className={btnSekunder} disabled={soalIndex === 0 || sedangMenyimpan}>
-                ← Sebelumnya
-              </button>
-              <button onClick={soalBerikutnya} className={btnSekunder} disabled={isSoalTerakhir || sedangMenyimpan}>
-                Berikutnya →
-              </button>
+            <div className="grid grid-cols-5 gap-2">
+              {daftarSoal.map((s, i) => {
+                const sudahDijawab = jawabanMap[s.id] && jawabanMap[s.id] !== '';
+                const aktif = i === soalIndex;
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => lompatKeSoal(i)}
+                    className={`w-9 h-9 rounded-full text-sm font-bold border-2 cursor-pointer
+                      ${aktif ? 'bg-slate-800 text-white border-slate-800' : ''}
+                      ${!aktif && sudahDijawab ? 'bg-green-100 text-green-800 border-green-400' : ''}
+                      ${!aktif && !sudahDijawab ? 'bg-white text-gray-500 border-gray-300' : ''}
+                    `}
+                    title={sudahDijawab ? 'Sudah dijawab' : 'Belum dijawab'}
+                  >
+                    {i + 1}
+                  </button>
+                );
+              })}
             </div>
 
-            <button onClick={konfirmasiSubmit} className={`${btnUtama} w-full mt-4`} disabled={sedangMenyimpan}>
-              {sedangMenyimpan ? 'Menyimpan...' : 'Kirim Semua Jawaban'}
+            <div className="mt-4 pt-3 border-t border-gray-200 text-xs text-gray-500 space-y-1">
+              <p className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-slate-800 inline-block" /> Sedang dilihat</p>
+              <p className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-green-100 border border-green-400 inline-block" /> Sudah dijawab</p>
+              <p className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-white border border-gray-300 inline-block" /> Belum dijawab</p>
+            </div>
+          </div>
+        </div>
+
+        {/* KOLOM TENGAH: konten soal — diberi jarak kiri/kanan supaya tidak ketiban panel fixed */}
+        <div className="max-w-2xl mx-auto lg:mx-[260px] xl:mx-auto xl:max-w-2xl p-5">
+          <div className="flex justify-between items-center mb-5">
+            <h1 className="text-xl font-bold text-gray-900">Ujian Rekrutmen</h1>
+            <span className={`font-bold ${waktuTersisa < 60 ? 'text-red-600' : 'text-gray-900'}`}>
+              ⏱ {formatWaktu(waktuTersisa)}
+            </span>
+          </div>
+
+          {/* Logo versi mobile (panel kiri fixed disembunyikan di layar sempit) */}
+          <div className="flex justify-center mb-4 lg:hidden">
+            <Image src="/logo.png" alt="Logo Sokka Fiber" width={64} height={64} priority />
+          </div>
+
+          <p className="text-gray-900 mb-2">Peserta: <b>{dataDiri.nama}</b></p>
+
+          {errorKamera && <p className="text-red-600 mb-2">{errorKamera}</p>}
+
+          {pengaturanProctoring.kameraAktif && (
+            <>
+              <video ref={videoRef} autoPlay muted playsInline
+                className="w-[200px] rounded-lg bg-black mb-2" />
+              <p className={`text-sm mb-1 ${statusWajah.includes('⚠') ? 'text-red-600' : 'text-green-600'}`}>{statusWajah}</p>
+            </>
+          )}
+          {pengaturanProctoring.audioAktif && (
+            <p className={`text-sm mb-2 ${statusAudio.includes('⚠') ? 'text-red-600' : 'text-green-600'}`}>{statusAudio}</p>
+          )}
+
+          {pelanggaran > 0 && (
+            <p className="text-red-600 font-bold mb-2">⚠ Total pelanggaran terdeteksi: {pelanggaran}</p>
+          )}
+
+          <p className="text-gray-500 text-sm">Soal {soalIndex + 1} dari {daftarSoal.length}</p>
+          <p className="text-gray-900 mb-2 break-words">{soalSekarang.teks}</p>
+
+          {soalSekarang.tipe === 'pilihan_ganda' ? (
+            <div className="mb-3">
+              {(soalSekarang.pilihan || []).map((opsi, i) => (
+                <label key={i} className="block p-2 mb-1 bg-gray-50 rounded cursor-pointer text-gray-900 break-words">
+                  <input
+                    type="radio"
+                    name={`soal-${soalSekarang.id}`}
+                    checked={jawabanMap[soalSekarang.id] === opsi}
+                    onChange={() => handleJawabanChange(soalSekarang.id, opsi)}
+                    className="mr-2"
+                  />
+                  {opsi}
+                </label>
+              ))}
+            </div>
+          ) : (
+            <textarea
+              rows={4}
+              className={`${input} resize-y`}
+              value={jawabanMap[soalSekarang.id] || ''}
+              onChange={(e) => handleJawabanChange(soalSekarang.id, e.target.value)}
+            />
+          )}
+
+          <div className="flex justify-between items-center mt-4">
+            <button onClick={soalSebelumnya} className={btnSekunder} disabled={soalIndex === 0 || sedangMenyimpan}>
+              ← Sebelumnya
+            </button>
+            <button onClick={soalBerikutnya} className={btnSekunder} disabled={isSoalTerakhir || sedangMenyimpan}>
+              Berikutnya →
             </button>
           </div>
 
-          {/* KOLOM KANAN: sidebar navigasi soal */}
-          <div className="w-full md:w-56 shrink-0">
-            <div className="md:sticky md:top-5 bg-gray-50 border border-gray-200 rounded-lg p-4">
-              <p className="text-sm font-bold text-gray-900 mb-1">Navigasi Soal</p>
-              <p className="text-xs text-gray-500 mb-3">{jumlahDijawab} dari {daftarSoal.length} terjawab</p>
+          <button onClick={konfirmasiSubmit} className={`${btnUtama} w-full mt-4`} disabled={sedangMenyimpan}>
+            {sedangMenyimpan ? 'Menyimpan...' : 'Kirim Semua Jawaban'}
+          </button>
 
-              <div className="grid grid-cols-5 gap-2">
-                {daftarSoal.map((s, i) => {
-                  const sudahDijawab = jawabanMap[s.id] && jawabanMap[s.id] !== '';
-                  const aktif = i === soalIndex;
-                  return (
-                    <button
-                      key={s.id}
-                      onClick={() => lompatKeSoal(i)}
-                      className={`w-9 h-9 rounded-full text-sm font-bold border-2 cursor-pointer
-                        ${aktif ? 'bg-slate-800 text-white border-slate-800' : ''}
-                        ${!aktif && sudahDijawab ? 'bg-green-100 text-green-800 border-green-400' : ''}
-                        ${!aktif && !sudahDijawab ? 'bg-white text-gray-500 border-gray-300' : ''}
-                      `}
-                      title={sudahDijawab ? 'Sudah dijawab' : 'Belum dijawab'}
-                    >
-                      {i + 1}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="mt-4 pt-3 border-t border-gray-200 text-xs text-gray-500 space-y-1">
-                <p className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-slate-800 inline-block" /> Sedang dilihat</p>
-                <p className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-green-100 border border-green-400 inline-block" /> Sudah dijawab</p>
-                <p className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-white border border-gray-300 inline-block" /> Belum dijawab</p>
-              </div>
+          {/* Navigasi soal versi mobile (panel kanan fixed disembunyikan di layar sempit) */}
+          <div className="lg:hidden mt-6 bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <p className="text-sm font-bold text-gray-900 mb-1">Navigasi Soal</p>
+            <p className="text-xs text-gray-500 mb-3">{jumlahDijawab} dari {daftarSoal.length} terjawab</p>
+            <div className="grid grid-cols-5 gap-2">
+              {daftarSoal.map((s, i) => {
+                const sudahDijawab = jawabanMap[s.id] && jawabanMap[s.id] !== '';
+                const aktif = i === soalIndex;
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => lompatKeSoal(i)}
+                    className={`w-9 h-9 rounded-full text-sm font-bold border-2 cursor-pointer
+                      ${aktif ? 'bg-slate-800 text-white border-slate-800' : ''}
+                      ${!aktif && sudahDijawab ? 'bg-green-100 text-green-800 border-green-400' : ''}
+                      ${!aktif && !sudahDijawab ? 'bg-white text-gray-500 border-gray-300' : ''}
+                    `}
+                  >
+                    {i + 1}
+                  </button>
+                );
+              })}
             </div>
           </div>
-
         </div>
       </main>
     );

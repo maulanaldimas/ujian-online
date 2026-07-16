@@ -83,6 +83,24 @@ export default function Dashboard() {
     return { benar, totalPG };
   }
 
+  function hitungGrade(peserta) {
+    const { benar, totalPG } = hitungSkor(peserta);
+    if (totalPG === 0) return { label: '—', warna: 'text-gray-400' };
+
+    const persen = (benar / totalPG) * 100;
+
+    if (persen <= 43) return { label: 'Review', warna: 'text-orange-600 font-bold' };
+    if (persen <= 79) return { label: 'Grade A', warna: 'text-blue-700 font-bold' };
+    if (persen <= 89) return { label: 'Grade B', warna: 'text-green-700 font-bold' };
+    return { label: 'Grade C', warna: 'text-purple-700 font-bold' };
+  }
+
+  function hitungTerjawab(peserta) {
+    const totalSoal = Object.keys(soalFullMap).length;
+    const terjawab = Object.values(peserta.jawaban || {}).filter((j) => j && j.trim() !== '').length;
+    return { terjawab, totalSoal };
+  }
+
   const input = 'w-full p-2 mb-3 border border-gray-300 rounded text-gray-900 bg-white';
   const btnUtama = 'px-4 py-2 bg-slate-800 text-white rounded hover:bg-slate-900 cursor-pointer';
 
@@ -113,10 +131,16 @@ export default function Dashboard() {
           ← Kembali ke daftar
         </button>
         <h1 className="text-2xl font-bold text-gray-900">{pesertaTerpilih.nama}</h1>
-        <p className="text-gray-700">Email: {pesertaTerpilih.email} | No HP: {pesertaTerpilih.noHp || '-'}</p>
+        <p className="text-gray-700">Email: {pesertaTerpilih.email}</p>
+        <p className="text-gray-700">No HP: {pesertaTerpilih.noHp}</p>
+        <p className="text-gray-700">Lokasi Kerja: {pesertaTerpilih.lokasiKerja}</p>
+        <p className="text-gray-700">NIK KTP: {pesertaTerpilih.nikKtp}</p>
         <p className="text-gray-700">Status: {pesertaTerpilih.status} | Mulai: {formatWaktu(pesertaTerpilih.waktuMulai)}</p>
         <p className={`font-bold ${pesertaTerpilih.totalPelanggaran > 0 ? 'text-red-600' : 'text-gray-900'}`}>
           Total pelanggaran terdeteksi: {pesertaTerpilih.totalPelanggaran ?? 0}
+        </p>
+        <p className="font-bold">
+          Grade: <span className={hitungGrade(pesertaTerpilih).warna}>{hitungGrade(pesertaTerpilih).label}</span>
         </p>
         <hr className="my-5" />
         <h2 className="text-xl font-bold text-gray-900 mb-2">Jawaban</h2>
@@ -164,8 +188,10 @@ export default function Dashboard() {
             <th className="p-2 text-left text-sm">Nama</th>
             <th className="p-2 text-left text-sm">Email</th>
             <th className="p-2 text-left text-sm">Status</th>
+            <th className="p-2 text-left text-sm">Terjawab</th>
             <th className="p-2 text-left text-sm">Pelanggaran</th>
             <th className="p-2 text-left text-sm">Skor</th>
+            <th className="p-2 text-left text-sm">Grade</th>
             <th className="p-2 text-left text-sm">Waktu Mulai</th>
             <th className="p-2 text-left text-sm"></th>
           </tr>
@@ -176,6 +202,12 @@ export default function Dashboard() {
               <td className="p-2 text-sm text-gray-900">{p.nama}</td>
               <td className="p-2 text-sm text-gray-900">{p.email}</td>
               <td className="p-2 text-sm text-gray-900">{p.status}</td>
+              <td className="p-2 text-sm text-gray-900">
+                {(() => {
+                  const { terjawab, totalSoal } = hitungTerjawab(p);
+                  return `${terjawab}/${totalSoal}`;
+                })()}
+              </td>
               <td className={`p-2 text-sm ${p.totalPelanggaran > 0 ? 'text-red-600 font-bold' : 'text-gray-900'}`}>
                 {p.totalPelanggaran ?? 0}
               </td>
@@ -183,6 +215,12 @@ export default function Dashboard() {
                 {(() => {
                   const { benar, totalPG } = hitungSkor(p);
                   return totalPG > 0 ? `${benar}/${totalPG} (${Math.round((benar / totalPG) * 100)}%)` : '—';
+                })()}
+              </td>
+              <td className="p-2 text-sm">
+                {(() => {
+                  const { label, warna } = hitungGrade(p);
+                  return <span className={warna}>{label}</span>;
                 })()}
               </td>
               <td className="p-2 text-sm text-gray-900">{formatWaktu(p.waktuMulai)}</td>
