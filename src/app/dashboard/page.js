@@ -1,39 +1,33 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { collection, getDocs, orderBy, query } from 'firebase/firestore';
-import { signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'firebase/auth';
+import { signOut } from 'firebase/auth';
 import { db, auth } from '../../firebase';
-import Link from 'next/link';
+import LoginGate from '../components/LoginGate';
+import { PageBackground, Card, Badge, Button, TopNav } from '../components/ui';
 
 export default function Dashboard() {
+  return (
+    <LoginGate>
+      {(user) => <DashboardIsi user={user} />}
+    </LoginGate>
+  );
+}
+
+function DashboardIsi({ user }) {
   const [peserta, setPeserta] = useState([]);
   const [soalMap, setSoalMap] = useState({});
   const [soalFullMap, setSoalFullMap] = useState({});
   const [kunciMap, setKunciMap] = useState({});
   const [loadingData, setLoadingData] = useState(true);
-  const [user, setUser] = useState(null);
-  const [cekLoginSelesai, setCekLoginSelesai] = useState(false);
-  const [emailInput, setEmailInput] = useState('');
-  const [passwordInput, setPasswordInput] = useState('');
-  const [errorLogin, setErrorLogin] = useState('');
   const [pesertaTerpilih, setPesertaTerpilih] = useState(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setCekLoginSelesai(true);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    if (!user) return;
     async function ambilData() {
       const qPeserta = query(collection(db, 'pesertaUjian'), orderBy('waktuMulai', 'desc'));
       const snapshotPeserta = await getDocs(qPeserta);
       setPeserta(snapshotPeserta.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() })));
 
-      // BARU: simpan seluruh data soal (bukan cuma teks), supaya tahu mana yang pilihan ganda
       const qSoal = query(collection(db, 'soalUjian'), orderBy('urutan', 'asc'));
       const snapshotSoal = await getDocs(qSoal);
       const mapSoal = {};
@@ -45,7 +39,6 @@ export default function Dashboard() {
       setSoalFullMap(mapSoal);
       setSoalMap(mapTeks);
 
-      // BARU: ambil kunci jawaban (HR sudah login, jadi diizinkan)
       const snapshotKunci = await getDocs(collection(db, 'kunciJawaban'));
       const mapKunci = {};
       snapshotKunci.docs.forEach((docSnap) => { mapKunci[docSnap.id] = docSnap.data().jawabanBenar; });
@@ -54,17 +47,7 @@ export default function Dashboard() {
       setLoadingData(false);
     }
     ambilData();
-  }, [user]);
-
-  async function handleLogin(e) {
-    e.preventDefault();
-    setErrorLogin('');
-    try {
-      await signInWithEmailAndPassword(auth, emailInput, passwordInput);
-    } catch (err) {
-      setErrorLogin('Email atau password salah.');
-    }
-  }
+  }, []);
 
   function formatWaktu(timestamp) {
     if (!timestamp) return '-';
@@ -83,156 +66,143 @@ export default function Dashboard() {
     return { benar, totalPG };
   }
 
-  function hitungGrade(peserta) {
-    const { benar, totalPG } = hitungSkor(peserta);
-    if (totalPG === 0) return { label: '—', warna: 'text-gray-400' };
-
-    const persen = (benar / totalPG) * 100;
-
-    if (persen <= 43) return { label: 'Review', warna: 'text-orange-600 font-bold' };
-    if (persen <= 79) return { label: 'Grade A', warna: 'text-blue-700 font-bold' };
-    if (persen <= 89) return { label: 'Grade B', warna: 'text-green-700 font-bold' };
-    return { label: 'Grade C', warna: 'text-purple-700 font-bold' };
-  }
-
   function hitungTerjawab(peserta) {
     const totalSoal = Object.keys(soalFullMap).length;
     const terjawab = Object.values(peserta.jawaban || {}).filter((j) => j && j.trim() !== '').length;
     return { terjawab, totalSoal };
   }
 
-  const input = 'w-full p-2 mb-3 border border-gray-300 rounded text-gray-900 bg-white';
-  const btnUtama = 'px-4 py-2 bg-slate-800 text-white rounded hover:bg-slate-900 cursor-pointer';
+  function hitungGrade(peserta) {
+    const { benar, totalPG } = hitungSkor(peserta);
+    if (totalPG === 0) return { label: '—', tone: 'slate' };
+    const persen = (benar / totalPG) * 100;
+    if (persen <= 43) return { label: 'Review', tone: 'orange' };
+    if (persen <= 79) return { label: 'Grade A', tone: 'blue' };
+    if (persen <= 89) return { label: 'Grade B', tone: 'green' };
+    return { label: 'Grade C', tone: 'purple' };
+  }
 
-  if (!cekLoginSelesai) return <p className="text-center mt-10 text-gray-900">Memuat...</p>;
-
-  if (!user) {
+  if (loadingData) {
     return (
-      <main className="max-w-sm mx-auto mt-20 p-5">
-        <h1 className="text-2xl font-bold text-gray-900 mb-4">Login HR</h1>
-        <form onSubmit={handleLogin}>
-          <input type="email" placeholder="Email" value={emailInput}
-            onChange={(e) => setEmailInput(e.target.value)} className={input} />
-          <input type="password" placeholder="Password" value={passwordInput}
-            onChange={(e) => setPasswordInput(e.target.value)} className={input} />
-          {errorLogin && <p className="text-red-600 mb-3">{errorLogin}</p>}
-          <button type="submit" className={btnUtama}>Masuk</button>
-        </form>
-      </main>
+      <PageBackground className="flex items-center justify-center">
+        <p className="text-slate-500 font-display">Memuat data...</p>
+      </PageBackground>
     );
   }
 
-  if (loadingData) return <p className="text-center mt-10 text-gray-900">Memuat data...</p>;
-
   if (pesertaTerpilih) {
-    return (
-      <main className="max-w-2xl mx-auto mt-10 p-5">
-        <button onClick={() => setPesertaTerpilih(null)} className="mb-5 px-3 py-1 border rounded cursor-pointer text-gray-900">
-          ← Kembali ke daftar
-        </button>
-        <h1 className="text-2xl font-bold text-gray-900">{pesertaTerpilih.nama}</h1>
-        <p className="text-gray-700">Email: {pesertaTerpilih.email}</p>
-        <p className="text-gray-700">No HP: {pesertaTerpilih.noHp}</p>
-        <p className="text-gray-700">Lokasi Kerja: {pesertaTerpilih.lokasiKerja}</p>
-        <p className="text-gray-700">NIK KTP: {pesertaTerpilih.nikKtp}</p>
-        <p className="text-gray-700">Status: {pesertaTerpilih.status} | Mulai: {formatWaktu(pesertaTerpilih.waktuMulai)}</p>
-        <p className={`font-bold ${pesertaTerpilih.totalPelanggaran > 0 ? 'text-red-600' : 'text-gray-900'}`}>
-          Total pelanggaran terdeteksi: {pesertaTerpilih.totalPelanggaran ?? 0}
-        </p>
-        <p className="font-bold">
-          Grade: <span className={hitungGrade(pesertaTerpilih).warna}>{hitungGrade(pesertaTerpilih).label}</span>
-        </p>
-        <hr className="my-5" />
-        <h2 className="text-xl font-bold text-gray-900 mb-2">Jawaban</h2>
-        {Object.entries(soalMap).map(([soalId, teksSoal]) => {
-          const soal = soalFullMap[soalId];
-          const jawabanPeserta = pesertaTerpilih.jawaban?.[soalId];
-          const kunci = kunciMap[soalId];
-          const isPG = soal?.tipe === 'pilihan_ganda';
-          const benar = isPG && kunci && jawabanPeserta === kunci;
+    const { benar, totalPG } = hitungSkor(pesertaTerpilih);
+    const grade = hitungGrade(pesertaTerpilih);
 
-          return (
-            <div key={soalId} className="mb-4">
-              <p className="font-bold text-gray-900 mb-1">{teksSoal}</p>
-              <p className={`p-2 rounded ${isPG ? (benar ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800') : 'bg-gray-50 text-gray-900'}`}>
-                {jawabanPeserta || <i>(tidak dijawab)</i>}
-                {isPG && (benar ? ' ✓' : ' ✗')}
-              </p>
-              {isPG && !benar && kunci && (
-                <p className="text-sm text-green-700 mt-1">Jawaban benar: {kunci}</p>
-              )}
+    return (
+      <PageBackground className="p-5">
+        <div className="max-w-3xl mx-auto">
+          <Button variant="secondary" onClick={() => setPesertaTerpilih(null)} className="mb-5">
+            ← Kembali ke daftar
+          </Button>
+
+          <Card className="p-6 mb-5">
+            <h1 className="font-display text-2xl font-bold text-[#10192E] mb-1">{pesertaTerpilih.nama}</h1>
+            <p className="text-sm text-slate-500 mb-4">
+              {pesertaTerpilih.email} · {pesertaTerpilih.noHp || '-'} · Mulai {formatWaktu(pesertaTerpilih.waktuMulai)}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Badge tone={pesertaTerpilih.status === 'selesai' ? 'green' : 'amber'}>{pesertaTerpilih.status}</Badge>
+              <Badge tone={pesertaTerpilih.totalPelanggaran > 0 ? 'red' : 'slate'}>
+                {pesertaTerpilih.totalPelanggaran ?? 0} pelanggaran
+              </Badge>
+              {totalPG > 0 && <Badge tone="teal">Skor {benar}/{totalPG}</Badge>}
+              <Badge tone={grade.tone}>{grade.label}</Badge>
             </div>
-          );
-        })}
-      </main>
+          </Card>
+
+          <Card className="p-6">
+            <h2 className="font-display text-lg font-bold text-[#10192E] mb-4">Jawaban</h2>
+            <div className="space-y-4">
+              {Object.entries(soalMap).map(([soalId, teksSoal]) => {
+                const soal = soalFullMap[soalId];
+                const jawabanPeserta = pesertaTerpilih.jawaban?.[soalId];
+                const kunci = kunciMap[soalId];
+                const isPG = soal?.tipe === 'pilihan_ganda';
+                const jawabanBenar = isPG && kunci && jawabanPeserta === kunci;
+
+                return (
+                  <div key={soalId}>
+                    <p className="font-semibold text-[#10192E] mb-1.5">{teksSoal}</p>
+                    <p className={`p-3 rounded-xl text-sm ${
+                      isPG ? (jawabanBenar ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800') : 'bg-[#F7F9FB] text-slate-700'
+                    }`}>
+                      {jawabanPeserta || <i className="text-slate-400">(tidak dijawab)</i>}
+                      {isPG && (jawabanBenar ? ' ✓' : ' ✗')}
+                    </p>
+                    {isPG && !jawabanBenar && kunci && (
+                      <p className="text-xs text-green-700 mt-1">Jawaban benar: {kunci}</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        </div>
+      </PageBackground>
     );
   }
 
   return (
-    <main className="max-w-4xl mx-auto mt-10 p-5">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard Hasil Ujian</h1>
-        <div className="text-gray-900">
-          <Link href="/dashboard/soal" className="mr-3 underline">Kelola Soal</Link>
-          <Link href="/dashboard/pengaturan" className="mr-3 underline">Pengaturan</Link>
-          <button onClick={() => signOut(auth)} className="px-4 py-2 border rounded cursor-pointer">
-            Logout
-          </button>
-        </div>
-      </div>
-      <p className="text-gray-700 mb-4">Login sebagai: {user.email} — Total peserta: {peserta.length}</p>
+    <PageBackground className="p-5">
+      <div className="max-w-6xl mx-auto">
+        <TopNav
+          title="Dashboard Hasil Ujian"
+          links={[
+            { href: '/dashboard/soal', label: 'Kelola Soal' },
+            { href: '/dashboard/pengaturan', label: 'Pengaturan' },
+          ]}
+          onLogout={() => signOut(auth)}
+        />
+        <p className="text-sm text-slate-500 mb-4">Login sebagai {user.email} · {peserta.length} peserta</p>
 
-      <table className="w-full border-collapse">
-        <thead>
-          <tr className="bg-slate-800 text-white">
-            <th className="p-2 text-left text-sm">Nama</th>
-            <th className="p-2 text-left text-sm">Email</th>
-            <th className="p-2 text-left text-sm">Status</th>
-            <th className="p-2 text-left text-sm">Terjawab</th>
-            <th className="p-2 text-left text-sm">Pelanggaran</th>
-            <th className="p-2 text-left text-sm">Skor</th>
-            <th className="p-2 text-left text-sm">Grade</th>
-            <th className="p-2 text-left text-sm">Waktu Mulai</th>
-            <th className="p-2 text-left text-sm"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {peserta.map((p) => (
-            <tr key={p.id} className="border-b border-gray-200">
-              <td className="p-2 text-sm text-gray-900">{p.nama}</td>
-              <td className="p-2 text-sm text-gray-900">{p.email}</td>
-              <td className="p-2 text-sm text-gray-900">{p.status}</td>
-              <td className="p-2 text-sm text-gray-900">
-                {(() => {
-                  const { terjawab, totalSoal } = hitungTerjawab(p);
-                  return `${terjawab}/${totalSoal}`;
-                })()}
-              </td>
-              <td className={`p-2 text-sm ${p.totalPelanggaran > 0 ? 'text-red-600 font-bold' : 'text-gray-900'}`}>
-                {p.totalPelanggaran ?? 0}
-              </td>
-              <td className="p-2 text-sm text-gray-900">
-                {(() => {
-                  const { benar, totalPG } = hitungSkor(p);
-                  return totalPG > 0 ? `${benar}/${totalPG} (${Math.round((benar / totalPG) * 100)}%)` : '—';
-                })()}
-              </td>
-              <td className="p-2 text-sm">
-                {(() => {
-                  const { label, warna } = hitungGrade(p);
-                  return <span className={warna}>{label}</span>;
-                })()}
-              </td>
-              <td className="p-2 text-sm text-gray-900">{formatWaktu(p.waktuMulai)}</td>
-              <td className="p-2 text-sm">
-                <button onClick={() => setPesertaTerpilih(p)} className="px-2 py-1 border rounded cursor-pointer text-gray-900">
-                  Lihat Jawaban
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </main>
+        <Card className="overflow-hidden">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="bg-[#10192E] text-white">
+                <th className="p-3 text-left text-xs font-display uppercase tracking-wide">Nama</th>
+                <th className="p-3 text-left text-xs font-display uppercase tracking-wide">Email</th>
+                <th className="p-3 text-left text-xs font-display uppercase tracking-wide">Status</th>
+                <th className="p-3 text-left text-xs font-display uppercase tracking-wide">Terjawab</th>
+                <th className="p-3 text-left text-xs font-display uppercase tracking-wide">Skor</th>
+                <th className="p-3 text-left text-xs font-display uppercase tracking-wide">Grade</th>
+                <th className="p-3 text-left text-xs font-display uppercase tracking-wide">Pelanggaran</th>
+                <th className="p-3 text-left text-xs font-display uppercase tracking-wide"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {peserta.map((p) => {
+                const { benar, totalPG } = hitungSkor(p);
+                const { terjawab, totalSoal } = hitungTerjawab(p);
+                const grade = hitungGrade(p);
+                return (
+                  <tr key={p.id} className="border-b border-slate-100 hover:bg-slate-50/50">
+                    <td className="p-3 text-sm text-[#10192E] font-medium">{p.nama}</td>
+                    <td className="p-3 text-sm text-slate-600">{p.email}</td>
+                    <td className="p-3 text-sm"><Badge tone={p.status === 'selesai' ? 'green' : 'amber'}>{p.status}</Badge></td>
+                    <td className="p-3 text-sm text-slate-600">{terjawab}/{totalSoal}</td>
+                    <td className="p-3 text-sm text-slate-600">{totalPG > 0 ? `${benar}/${totalPG} (${Math.round((benar / totalPG) * 100)}%)` : '—'}</td>
+                    <td className="p-3 text-sm"><Badge tone={grade.tone}>{grade.label}</Badge></td>
+                    <td className="p-3 text-sm">
+                      <Badge tone={p.totalPelanggaran > 0 ? 'red' : 'slate'}>{p.totalPelanggaran ?? 0}</Badge>
+                    </td>
+                    <td className="p-3 text-sm">
+                      <Button variant="ghost" onClick={() => setPesertaTerpilih(p)} className="!px-3 !py-1.5 text-xs">
+                        Lihat Detail
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </Card>
+      </div>
+    </PageBackground>
   );
 }

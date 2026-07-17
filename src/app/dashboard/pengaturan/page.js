@@ -1,17 +1,37 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { signOut } from 'firebase/auth';
 import { db, auth } from '../../../firebase';
-import Link from 'next/link';
+import LoginGate from '../../components/LoginGate';
+import { PageBackground, Card, Button, TopNav } from '../../components/ui';
 
 export default function Pengaturan() {
-  const [user, setUser] = useState(null);
-  const [cekLoginSelesai, setCekLoginSelesai] = useState(false);
-  const [emailInput, setEmailInput] = useState('');
-  const [passwordInput, setPasswordInput] = useState('');
-  const [errorLogin, setErrorLogin] = useState('');
+  return (
+    <LoginGate>
+      {() => <PengaturanIsi />}
+    </LoginGate>
+  );
+}
 
+function ToggleRow({ judul, deskripsi, aktif, onToggle }) {
+  return (
+    <div className="flex justify-between items-center py-4 border-b border-slate-100 last:border-b-0">
+      <div className="pr-4">
+        <p className="font-display font-bold text-[#10192E]">{judul}</p>
+        <p className="text-sm text-slate-500">{deskripsi}</p>
+      </div>
+      <button
+        onClick={onToggle}
+        className={`w-14 h-8 rounded-full relative transition cursor-pointer shrink-0 ${aktif ? 'bg-[#1F6F78]' : 'bg-slate-300'}`}
+      >
+        <span className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all ${aktif ? 'left-7' : 'left-1'}`} />
+      </button>
+    </div>
+  );
+}
+
+function PengaturanIsi() {
   const [kameraAktif, setKameraAktif] = useState(true);
   const [audioAktif, setAudioAktif] = useState(true);
   const [loadingPengaturan, setLoadingPengaturan] = useState(true);
@@ -19,15 +39,6 @@ export default function Pengaturan() {
   const [pesanSukses, setPesanSukses] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setCekLoginSelesai(true);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    if (!user) return;
     async function muatPengaturan() {
       const docSnap = await getDoc(doc(db, 'pengaturan', 'proctoring'));
       if (docSnap.exists()) {
@@ -38,17 +49,7 @@ export default function Pengaturan() {
       setLoadingPengaturan(false);
     }
     muatPengaturan();
-  }, [user]);
-
-  async function handleLogin(e) {
-    e.preventDefault();
-    setErrorLogin('');
-    try {
-      await signInWithEmailAndPassword(auth, emailInput, passwordInput);
-    } catch (err) {
-      setErrorLogin('Email atau password salah.');
-    }
-  }
+  }, []);
 
   async function simpanPengaturan() {
     setSedangSimpan(true);
@@ -64,75 +65,49 @@ export default function Pengaturan() {
     setSedangSimpan(false);
   }
 
-  const input = 'w-full p-2 mb-3 border border-gray-300 rounded text-gray-900 bg-white';
-  const btnUtama = 'px-4 py-2 bg-slate-800 text-white rounded hover:bg-slate-900 disabled:opacity-50 cursor-pointer';
-
-  if (!cekLoginSelesai) return <p className="text-center mt-10 text-gray-900">Memuat...</p>;
-
-  if (!user) {
+  if (loadingPengaturan) {
     return (
-      <main className="max-w-sm mx-auto mt-20 p-5">
-        <h1 className="text-2xl font-bold text-gray-900 mb-4">Login HR</h1>
-        <form onSubmit={handleLogin}>
-          <input type="email" placeholder="Email" value={emailInput}
-            onChange={(e) => setEmailInput(e.target.value)} className={input} />
-          <input type="password" placeholder="Password" value={passwordInput}
-            onChange={(e) => setPasswordInput(e.target.value)} className={input} />
-          {errorLogin && <p className="text-red-600 mb-3">{errorLogin}</p>}
-          <button type="submit" className={btnUtama}>Masuk</button>
-        </form>
-      </main>
+      <PageBackground className="flex items-center justify-center">
+        <p className="text-slate-500 font-display">Memuat pengaturan...</p>
+      </PageBackground>
     );
   }
 
-  if (loadingPengaturan) return <p className="text-center mt-10 text-gray-900">Memuat pengaturan...</p>;
-
   return (
-    <main className="max-w-xl mx-auto p-5 mt-10">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Pengaturan Proctoring</h1>
-        <div className="text-gray-900">
-          <Link href="/dashboard" className="mr-3 underline">← Ke Dashboard</Link>
-          <button onClick={() => signOut(auth)} className="cursor-pointer underline">Logout</button>
+    <PageBackground className="p-5">
+      <div className="max-w-xl mx-auto">
+        <TopNav
+          title="Pengaturan Proctoring"
+          links={[{ href: '/dashboard', label: '← Dashboard' }]}
+          onLogout={() => signOut(auth)}
+        />
+
+        <Card className="p-6 mb-4">
+          <ToggleRow
+            judul="Deteksi Wajah (Kamera)"
+            deskripsi="Memantau kamera peserta untuk deteksi wajah kosong/ganda."
+            aktif={kameraAktif}
+            onToggle={() => setKameraAktif(!kameraAktif)}
+          />
+          <ToggleRow
+            judul="Deteksi Suara (Mikrofon)"
+            deskripsi="Memantau mikrofon peserta untuk deteksi suara mencurigakan."
+            aktif={audioAktif}
+            onToggle={() => setAudioAktif(!audioAktif)}
+          />
+        </Card>
+
+        <p className="text-xs text-slate-500 mb-4">
+          Perubahan berlaku untuk peserta yang <b>baru memulai</b> ujian setelah pengaturan disimpan — tidak memengaruhi sesi yang sedang berjalan.
+        </p>
+
+        <div className="flex items-center gap-3">
+          <Button onClick={simpanPengaturan} disabled={sedangSimpan}>
+            {sedangSimpan ? 'Menyimpan...' : 'Simpan Pengaturan'}
+          </Button>
+          {pesanSukses && <span className="text-green-700 font-semibold text-sm">✓ Tersimpan</span>}
         </div>
       </div>
-
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-5 mb-4">
-        <div className="flex justify-between items-center py-3 border-b border-gray-200">
-          <div>
-            <p className="font-bold text-gray-900">Deteksi Wajah (Kamera)</p>
-            <p className="text-sm text-gray-600">Memantau kamera peserta untuk deteksi wajah kosong/ganda.</p>
-          </div>
-          <button
-            onClick={() => setKameraAktif(!kameraAktif)}
-            className={`w-14 h-8 rounded-full relative transition cursor-pointer ${kameraAktif ? 'bg-green-500' : 'bg-gray-300'}`}
-          >
-            <span className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all ${kameraAktif ? 'left-7' : 'left-1'}`} />
-          </button>
-        </div>
-
-        <div className="flex justify-between items-center py-3">
-          <div>
-            <p className="font-bold text-gray-900">Deteksi Suara (Mikrofon)</p>
-            <p className="text-sm text-gray-600">Memantau mikrofon peserta untuk deteksi suara mencurigakan.</p>
-          </div>
-          <button
-            onClick={() => setAudioAktif(!audioAktif)}
-            className={`w-14 h-8 rounded-full relative transition cursor-pointer ${audioAktif ? 'bg-green-500' : 'bg-gray-300'}`}
-          >
-            <span className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all ${audioAktif ? 'left-7' : 'left-1'}`} />
-          </button>
-        </div>
-      </div>
-
-      <p className="text-xs text-gray-500 mb-4">
-        Perubahan berlaku untuk peserta yang <b>baru memulai</b> ujian setelah pengaturan disimpan — tidak memengaruhi sesi yang sedang berjalan.
-      </p>
-
-      <button onClick={simpanPengaturan} className={btnUtama} disabled={sedangSimpan}>
-        {sedangSimpan ? 'Menyimpan...' : 'Simpan Pengaturan'}
-      </button>
-      {pesanSukses && <span className="ml-3 text-green-700 font-semibold">✓ Tersimpan</span>}
-    </main>
+    </PageBackground>
   );
 }

@@ -1,10 +1,10 @@
 'use client';
-import Image from 'next/image';
-import { doc as docRef2, getDoc } from 'firebase/firestore';
 import { useState, useEffect, useRef } from 'react';
 import { FaceDetector, FilesetResolver } from '@mediapipe/tasks-vision';
-import { collection, addDoc, updateDoc, doc, serverTimestamp, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, doc as docRef2, getDoc, serverTimestamp, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
+import Image from 'next/image';
+import { PageBackground, Card, Label, Input, Textarea, Button, Badge } from './components/ui';
 
 const DURASI_UJIAN_DETIK = 60 * 60;
 
@@ -76,10 +76,7 @@ export default function Home() {
         const q = query(collection(db, 'soalUjian'), orderBy('urutan', 'asc'));
         const snapshot = await getDocs(q);
         const data = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
-        const teracak = acakUrutan(data);
-        // DEBUG: cek di Console (F12) apakah urutan ini berubah tiap kali ujian dimulai
-        console.log('Urutan soal sesi ini:', teracak.map((s) => s.teks));
-        setDaftarSoal(teracak);
+        setDaftarSoal(acakUrutan(data));
       } catch (err) {
         console.error('Gagal ambil soal:', err);
       }
@@ -151,19 +148,14 @@ export default function Home() {
   }, [step]);
 
   useEffect(() => {
-    if (step !== 'ujian' || !pengaturanSiap) return; // BARU: tunggu pengaturan siap dulu
+    if (step !== 'ujian' || !pengaturanSiap) return;
     let stream;
     const { kameraAktif, audioAktif } = pengaturanProctoring;
 
     async function setup() {
-      // BARU: kalau kamera & audio dua-duanya mati, tidak perlu minta izin apapun
       if (!kameraAktif && !audioAktif) return;
-
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: kameraAktif,
-          audio: audioAktif,
-        });
+        stream = await navigator.mediaDevices.getUserMedia({ video: kameraAktif, audio: audioAktif });
         if (kameraAktif && videoRef.current) {
           videoRef.current.srcObject = stream;
           await videoRef.current.play();
@@ -173,7 +165,6 @@ export default function Home() {
         return;
       }
 
-      // BARU: hanya setup audio analyser kalau audio aktif
       if (audioAktif) {
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
         const source = audioContext.createMediaStreamSource(stream);
@@ -184,7 +175,6 @@ export default function Home() {
         analyserRef.current = analyser;
       }
 
-      // BARU: hanya load AI wajah kalau kamera aktif
       if (kameraAktif) {
         const vision = await FilesetResolver.forVisionTasks(
           'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm'
@@ -203,7 +193,7 @@ export default function Home() {
     }
 
     function cekAudio() {
-      if (!audioAktif) return; // BARU
+      if (!audioAktif) return;
       const analyser = analyserRef.current;
       if (!analyser) return;
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
@@ -222,13 +212,10 @@ export default function Home() {
 
     function deteksiLoop() {
       cekAudio();
-
       if (!kameraAktif || !videoRef.current || !faceDetectorRef.current) {
-        // BARU: kalau kamera mati, tetap lanjut loop (untuk audio saja), tapi skip deteksi wajah
         if (audioAktif) animasiRef.current = requestAnimationFrame(deteksiLoop);
         return;
       }
-
       if (videoRef.current.readyState < 2) {
         animasiRef.current = requestAnimationFrame(deteksiLoop);
         return;
@@ -296,17 +283,9 @@ export default function Home() {
   function handleJawabanChange(soalId, teks) {
     setJawabanMap((prev) => ({ ...prev, [soalId]: teks }));
   }
-
-  // BARU: navigasi bebas, tidak lagi otomatis submit di soal terakhir
-  function soalBerikutnya() {
-    if (soalIndex < daftarSoal.length - 1) setSoalIndex((prev) => prev + 1);
-  }
-  function soalSebelumnya() {
-    if (soalIndex > 0) setSoalIndex((prev) => prev - 1);
-  }
-  function lompatKeSoal(index) {
-    setSoalIndex(index);
-  }
+  function soalBerikutnya() { if (soalIndex < daftarSoal.length - 1) setSoalIndex((prev) => prev + 1); }
+  function soalSebelumnya() { if (soalIndex > 0) setSoalIndex((prev) => prev - 1); }
+  function lompatKeSoal(index) { setSoalIndex(index); }
 
   async function kembaliFullscreen() {
     try {
@@ -316,13 +295,10 @@ export default function Home() {
     }
   }
 
-  // BARU: submit sekarang bisa dipanggil dari soal manapun, dengan konfirmasi kalau ada yang belum dijawab
   function konfirmasiSubmit() {
     const jumlahBelumJawab = daftarSoal.filter((s) => !jawabanMap[s.id] || jawabanMap[s.id] === '').length;
     if (jumlahBelumJawab > 0) {
-      const lanjut = confirm(
-        `Masih ada ${jumlahBelumJawab} soal yang belum dijawab. Yakin ingin mengirim jawaban sekarang?`
-      );
+      const lanjut = confirm(`Masih ada ${jumlahBelumJawab} soal yang belum dijawab. Yakin ingin mengirim jawaban sekarang?`);
       if (!lanjut) return;
     }
     submitAkhir();
@@ -355,230 +331,242 @@ export default function Home() {
     return `${menit}:${sisaDetik.toString().padStart(2, '0')}`;
   }
 
-  const input = 'w-full p-2 mb-3 border border-gray-300 rounded text-gray-900 bg-white';
-  const btnUtama = 'px-4 py-2 bg-slate-800 text-white rounded hover:bg-slate-900 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer';
-  const btnSekunder = 'px-4 py-2 border border-gray-300 text-gray-900 rounded hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer';
-
+  // ===== TAMPILAN: FORM DATA DIRI =====
   if (step === 'form') {
+    const langkah = [
+      { label: 'Data Diri', aktif: true },
+      { label: 'Ujian Berlangsung', aktif: false },
+      { label: 'Selesai', aktif: false },
+    ];
+
     return (
-      <main className="max-w-md mx-auto mt-10 p-5">
-        <div className="flex justify-center mb-4">
-          <Image src="/logo.png" alt="Logo Sokka Fiber" width={300} height={300} priority />
-        </div>
-        <h1 className="text-2xl font-bold text-gray-900 mb-2 text-center">Data Diri Peserta</h1>
-        <p className="text-xs text-gray-700 mb-4">
-          Ujian akan berjalan dalam mode layar penuh. Pastikan untuk tidak keluar dari mode layar penuh. Jika keluar dari mode layar penuh, ini akan tercatat sebagai pelanggaran.
-        </p>
-        <form onSubmit={handleFormSubmit}>
-          <label className="block font-bold text-gray-900 mb-1">Nama Lengkap</label>
-          <input className={input} value={dataDiri.nama}
-            onChange={(e) => setDataDiri({ ...dataDiri, nama: e.target.value })} />
+      <PageBackground className="flex items-center justify-center p-5">
+        <Card className="w-full max-w-md overflow-hidden">
+          <div className="bg-[#ffffff] px-8 pt-8 pb-6 text-center">
+            <div className="flex justify-center mb-3">
+              <div className="bg-[#ffffff00] rounded-2xl p-2">
+                <Image src="/logo.png" alt="Logo Sokka Fiber" width={200} height={200} priority />
+              </div>
+            </div>
+            <h1 className="font-display text-2xl font-bold text-[#10192E]">Ujian Rekrutmen</h1>
+            <p className="text-sm text-slate-500 mt-2">
+              Ujian akan berjalan dalam mode layar penuh. Keluar dari mode layar penuh akan tercatat sebagai pelanggaran.
+            </p>
+          </div>
 
-          <label className="block font-bold text-gray-900 mb-1">Email</label>
-          <input type="email" className={input} value={dataDiri.email}
-            onChange={(e) => setDataDiri({ ...dataDiri, email: e.target.value })} />
+          <div className="flex items-center justify-center gap-2 px-8 pt-5 text-xs">
+            {langkah.map((l, i) => (
+              <div key={l.label} className="flex items-center gap-2">
+                <span className={`flex items-center gap-1 font-semibold ${l.aktif ? 'text-[#10192E]' : 'text-slate-400'}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${l.aktif ? 'bg-[#E8A33D]' : 'bg-slate-300'}`} />
+                  {l.label}
+                </span>
+                {i < langkah.length - 1 && <span className="text-slate-300">—</span>}
+              </div>
+            ))}
+          </div>
 
-          <label className="block font-bold text-gray-900 mb-1">No HP</label>
-          <input type="tel" className={input} value={dataDiri.noHp}
-            onChange={(e) => {
-              const hanyaAngka = e.target.value.replace(/[^0-9]/g, '');
-              setDataDiri({ ...dataDiri, noHp: hanyaAngka });
-            }} />
+          <form onSubmit={handleFormSubmit} className="px-8 pt-6 pb-8">
+            <Label>Nama Lengkap</Label>
+            <Input className="mb-4" placeholder="Sesuai KTP/identitas resmi"
+              value={dataDiri.nama} onChange={(e) => setDataDiri({ ...dataDiri, nama: e.target.value })} />
 
-          <label className="block font-bold text-gray-900 mb-1">Lokasi Kerja</label>
-          <input className={input} value={dataDiri.lokasiKerja}
-            onChange={(e) => setDataDiri({ ...dataDiri, lokasiKerja: e.target.value })} />
+            <Label>Email</Label>
+            <Input type="email" className="mb-4" placeholder="nama@email.com"
+              value={dataDiri.email} onChange={(e) => setDataDiri({ ...dataDiri, email: e.target.value })} />
 
-          <label className="block font-bold text-gray-900 mb-1">NIK KTP</label>
-          <input type="tel" className={input} value={dataDiri.nikKtp}
-            onChange={(e) => {
-              const hanyaAngka = e.target.value.replace(/[^0-9]/g, '');
-              setDataDiri({ ...dataDiri, nikKtp: hanyaAngka });
-            }} />
+            <Label>No HP</Label>
+            <Input type="tel" className="mb-4" placeholder="08xxxxxxxxxx"
+              value={dataDiri.noHp}
+              onChange={(e) => setDataDiri({ ...dataDiri, noHp: e.target.value.replace(/[^0-9]/g, '') })} />
 
-          <button type="submit" className={btnUtama} disabled={sedangMenyimpan}>
-            {sedangMenyimpan ? 'Menyimpan...' : 'Mulai Ujian'}
-          </button>
-        </form>
-      </main>
+            <Label>Lokasi Kerja</Label>
+            <Input className="mb-4" placeholder="Contoh: Jakarta, Bandung, dst"
+              value={dataDiri.lokasiKerja} onChange={(e) => setDataDiri({ ...dataDiri, lokasiKerja: e.target.value })} />
+
+            <Label>NIK KTP</Label>
+            <Input type="tel" className="mb-6" placeholder="16 digit NIK"
+              value={dataDiri.nikKtp}
+              onChange={(e) => setDataDiri({ ...dataDiri, nikKtp: e.target.value.replace(/[^0-9]/g, '') })} />
+
+            <Button type="submit" className="w-full" disabled={sedangMenyimpan}>
+              {sedangMenyimpan ? 'Menyimpan...' : 'Mulai Ujian'}
+            </Button>
+
+            <p className="flex items-center justify-center gap-1.5 text-xs text-slate-400 mt-5">
+              ❓ Ada kendala? Hubungi tim HR
+            </p>
+          </form>
+        </Card>
+      </PageBackground>
     );
   }
 
+  // ===== TAMPILAN: UJIAN BERLANGSUNG =====
   if (step === 'ujian') {
     if (daftarSoal.length === 0) {
-      return <p className="text-center mt-10 text-gray-900">Memuat soal...</p>;
+      return (
+        <PageBackground className="flex items-center justify-center">
+          <p className="text-slate-500 font-display">Memuat soal...</p>
+        </PageBackground>
+      );
     }
 
     const soalSekarang = daftarSoal[soalIndex];
     const isSoalTerakhir = soalIndex === daftarSoal.length - 1;
     const jumlahDijawab = daftarSoal.filter((s) => jawabanMap[s.id] && jawabanMap[s.id] !== '').length;
 
+    const NavigasiSoal = (
+      <Card className="p-4">
+        <p className="font-display text-sm font-bold text-[#10192E] mb-1">Navigasi Soal</p>
+        <p className="text-xs text-slate-500 mb-3">{jumlahDijawab} dari {daftarSoal.length} terjawab</p>
+        <div className="grid grid-cols-5 gap-2">
+          {daftarSoal.map((s, i) => {
+            const sudahDijawab = jawabanMap[s.id] && jawabanMap[s.id] !== '';
+            const aktif = i === soalIndex;
+            return (
+              <button
+                key={s.id}
+                onClick={() => lompatKeSoal(i)}
+                className={`w-9 h-9 rounded-full text-sm font-bold border-2 cursor-pointer transition
+                  ${aktif ? 'bg-[#10192E] text-white border-[#10192E]' : ''}
+                  ${!aktif && sudahDijawab ? 'bg-green-50 text-green-700 border-green-300' : ''}
+                  ${!aktif && !sudahDijawab ? 'bg-white text-slate-400 border-slate-200' : ''}
+                `}
+              >
+                {i + 1}
+              </button>
+            );
+          })}
+        </div>
+        <div className="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500 space-y-1.5">
+          <p className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-[#10192E] inline-block" /> Sedang dilihat</p>
+          <p className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-green-50 border border-green-300 inline-block" /> Sudah dijawab</p>
+          <p className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-white border border-slate-200 inline-block" /> Belum dijawab</p>
+        </div>
+      </Card>
+    );
+
     return (
-      <main className="min-h-screen">
+      <PageBackground>
         {keluarFullscreen && (
-          <div className="max-w-2xl mx-auto mt-5 bg-red-50 border-2 border-red-500 p-4 rounded-lg text-center">
-            <p className="text-red-600 font-bold">
-              ⚠ Anda keluar dari mode layar penuh. Ini tercatat sebagai pelanggaran.
-            </p>
-            <button onClick={kembaliFullscreen} className={`${btnUtama} mt-2`}>
-              Kembali ke Layar Penuh
-            </button>
+          <div className="max-w-2xl mx-auto pt-5 px-5">
+            <Card className="!border-red-300 bg-red-50 p-4 text-center">
+              <p className="text-red-700 font-bold flex items-center justify-center gap-2">
+                ⚠️ Anda keluar dari mode layar penuh. Ini tercatat sebagai pelanggaran.
+              </p>
+              <Button onClick={kembaliFullscreen} className="mt-3">Kembali ke Layar Penuh</Button>
+            </Card>
           </div>
         )}
 
-        {/* PANEL KIRI: logo, fixed ke viewport, tidak bergerak sama sekali */}
-        <div className="hidden lg:flex lg:flex-col lg:items-center lg:fixed lg:left-8 lg:top-6 lg:w-[430px]">
-          <Image src="/logo.png" alt="Logo Sokka Fiber" width={1500} height={1500} priority />
+        <div className="hidden lg:flex lg:flex-col lg:items-center lg:fixed lg:left-8 lg:top-6 lg:w-[400px]">
+          <Image src="/logo.png" alt="Logo Sokka Fiber" width={700} height={700} priority />
         </div>
 
-        {/* PANEL KANAN: navigasi soal, fixed ke viewport, tidak bergerak sama sekali */}
         <div className="hidden lg:block lg:fixed lg:right-8 lg:top-6 lg:w-[240px]">
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-            <p className="text-sm font-bold text-gray-900 mb-1">Navigasi Soal</p>
-            <p className="text-xs text-gray-500 mb-3">{jumlahDijawab} dari {daftarSoal.length} terjawab</p>
-
-            <div className="grid grid-cols-5 gap-2">
-              {daftarSoal.map((s, i) => {
-                const sudahDijawab = jawabanMap[s.id] && jawabanMap[s.id] !== '';
-                const aktif = i === soalIndex;
-                return (
-                  <button
-                    key={s.id}
-                    onClick={() => lompatKeSoal(i)}
-                    className={`w-9 h-9 rounded-full text-sm font-bold border-2 cursor-pointer
-                      ${aktif ? 'bg-slate-800 text-white border-slate-800' : ''}
-                      ${!aktif && sudahDijawab ? 'bg-green-100 text-green-800 border-green-400' : ''}
-                      ${!aktif && !sudahDijawab ? 'bg-white text-gray-500 border-gray-300' : ''}
-                    `}
-                    title={sudahDijawab ? 'Sudah dijawab' : 'Belum dijawab'}
-                  >
-                    {i + 1}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="mt-4 pt-3 border-t border-gray-200 text-xs text-gray-500 space-y-1">
-              <p className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-slate-800 inline-block" /> Sedang dilihat</p>
-              <p className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-green-100 border border-green-400 inline-block" /> Sudah dijawab</p>
-              <p className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-white border border-gray-300 inline-block" /> Belum dijawab</p>
-            </div>
-          </div>
+          {NavigasiSoal}
         </div>
 
-        {/* KOLOM TENGAH: konten soal — diberi jarak kiri/kanan supaya tidak ketiban panel fixed */}
         <div className="max-w-2xl mx-auto lg:mx-[260px] xl:mx-auto xl:max-w-2xl p-5">
           <div className="flex justify-between items-center mb-5">
-            <h1 className="text-xl font-bold text-gray-900">Ujian Rekrutmen</h1>
-            <span className={`font-bold ${waktuTersisa < 60 ? 'text-red-600' : 'text-gray-900'}`}>
+            <h1 className="font-display text-xl font-bold text-[#10192E]">Ujian Rekrutmen</h1>
+            <span className={`flex items-center gap-1.5 font-display font-bold px-3 py-1.5 rounded-full text-sm ${waktuTersisa < 60 ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-[#10192E]'}`}>
               ⏱ {formatWaktu(waktuTersisa)}
             </span>
           </div>
 
-          {/* Logo versi mobile (panel kiri fixed disembunyikan di layar sempit) */}
           <div className="flex justify-center mb-4 lg:hidden">
             <Image src="/logo.png" alt="Logo Sokka Fiber" width={64} height={64} priority />
           </div>
 
-          <p className="text-gray-900 mb-2">Peserta: <b>{dataDiri.nama}</b></p>
+          <Card className="p-6">
+            <p className="text-sm text-slate-500 mb-4">Peserta: <b className="text-[#10192E]">{dataDiri.nama}</b></p>
 
-          {errorKamera && <p className="text-red-600 mb-2">{errorKamera}</p>}
+            {errorKamera && <p className="text-red-600 text-sm mb-3">{errorKamera}</p>}
 
-          {pengaturanProctoring.kameraAktif && (
-            <>
-              <video ref={videoRef} autoPlay muted playsInline
-                className="w-[200px] rounded-lg bg-black mb-2" />
-              <p className={`text-sm mb-1 ${statusWajah.includes('⚠') ? 'text-red-600' : 'text-green-600'}`}>{statusWajah}</p>
-            </>
-          )}
-          {pengaturanProctoring.audioAktif && (
-            <p className={`text-sm mb-2 ${statusAudio.includes('⚠') ? 'text-red-600' : 'text-green-600'}`}>{statusAudio}</p>
-          )}
+            {(pengaturanProctoring.kameraAktif || pengaturanProctoring.audioAktif) && (
+              <div className="flex items-center gap-4 mb-4 pb-4 border-b border-slate-100">
+                {pengaturanProctoring.kameraAktif && (
+                  <video ref={videoRef} autoPlay muted playsInline className="w-[140px] rounded-lg bg-black" />
+                )}
+                <div className="space-y-1.5">
+                  {pengaturanProctoring.kameraAktif && (
+                    <Badge tone={statusWajah.includes('⚠') ? 'red' : 'green'}>{statusWajah.replace('⚠ ', '').replace('✓ ', '')}</Badge>
+                  )}
+                  {pengaturanProctoring.audioAktif && (
+                    <div><Badge tone={statusAudio.includes('⚠') ? 'red' : 'green'}>{statusAudio.replace('⚠ ', '').replace('✓ ', '')}</Badge></div>
+                  )}
+                  {pelanggaran > 0 && (
+                    <div><Badge tone="orange">⚠ {pelanggaran} pelanggaran terdeteksi</Badge></div>
+                  )}
+                </div>
+              </div>
+            )}
 
-          {pelanggaran > 0 && (
-            <p className="text-red-600 font-bold mb-2">⚠ Total pelanggaran terdeteksi: {pelanggaran}</p>
-          )}
+            <p className="text-slate-400 text-xs font-semibold uppercase tracking-wide mb-1">Soal {soalIndex + 1} dari {daftarSoal.length}</p>
+            <p className="text-[#10192E] text-lg mb-4 break-words">{soalSekarang.teks}</p>
 
-          <p className="text-gray-500 text-sm">Soal {soalIndex + 1} dari {daftarSoal.length}</p>
-          <p className="text-gray-900 mb-2 break-words">{soalSekarang.teks}</p>
+            {soalSekarang.tipe === 'pilihan_ganda' ? (
+              <div className="mb-4 space-y-2">
+                {(soalSekarang.pilihan || []).map((opsi, i) => {
+                  const dipilih = jawabanMap[soalSekarang.id] === opsi;
+                  return (
+                    <label key={i} className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer border-2 transition break-words
+                      ${dipilih ? 'bg-teal-50 border-[#1F6F78]' : 'bg-[#F7F9FB] border-transparent hover:border-slate-200'}`}>
+                      <input
+                        type="radio"
+                        name={`soal-${soalSekarang.id}`}
+                        checked={dipilih}
+                        onChange={() => handleJawabanChange(soalSekarang.id, opsi)}
+                        className="w-4 h-4 accent-[#1F6F78]"
+                      />
+                      <span className="text-[#10192E]">{opsi}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            ) : (
+              <Textarea rows={5} className="mb-2"
+                value={jawabanMap[soalSekarang.id] || ''}
+                onChange={(e) => handleJawabanChange(soalSekarang.id, e.target.value)} />
+            )}
 
-          {soalSekarang.tipe === 'pilihan_ganda' ? (
-            <div className="mb-3">
-              {(soalSekarang.pilihan || []).map((opsi, i) => (
-                <label key={i} className="block p-2 mb-1 bg-gray-50 rounded cursor-pointer text-gray-900 break-words">
-                  <input
-                    type="radio"
-                    name={`soal-${soalSekarang.id}`}
-                    checked={jawabanMap[soalSekarang.id] === opsi}
-                    onChange={() => handleJawabanChange(soalSekarang.id, opsi)}
-                    className="mr-2"
-                  />
-                  {opsi}
-                </label>
-              ))}
+            <div className="flex justify-between items-center mt-5">
+              <Button variant="secondary" onClick={soalSebelumnya} disabled={soalIndex === 0 || sedangMenyimpan}>
+                ← Sebelumnya
+              </Button>
+              <Button variant="secondary" onClick={soalBerikutnya} disabled={isSoalTerakhir || sedangMenyimpan}>
+                → Berikutnya
+              </Button>
             </div>
-          ) : (
-            <textarea
-              rows={4}
-              className={`${input} resize-y`}
-              value={jawabanMap[soalSekarang.id] || ''}
-              onChange={(e) => handleJawabanChange(soalSekarang.id, e.target.value)}
-            />
-          )}
 
-          <div className="flex justify-between items-center mt-4">
-            <button onClick={soalSebelumnya} className={btnSekunder} disabled={soalIndex === 0 || sedangMenyimpan}>
-              ← Sebelumnya
-            </button>
-            <button onClick={soalBerikutnya} className={btnSekunder} disabled={isSoalTerakhir || sedangMenyimpan}>
-              Berikutnya →
-            </button>
-          </div>
+            <Button onClick={konfirmasiSubmit} className="w-full mt-4" disabled={sedangMenyimpan}>
+              {sedangMenyimpan ? 'Menyimpan...' : '📤 Kirim Semua Jawaban'}
+            </Button>
+          </Card>
 
-          <button onClick={konfirmasiSubmit} className={`${btnUtama} w-full mt-4`} disabled={sedangMenyimpan}>
-            {sedangMenyimpan ? 'Menyimpan...' : 'Kirim Semua Jawaban'}
-          </button>
-
-          {/* Navigasi soal versi mobile (panel kanan fixed disembunyikan di layar sempit) */}
-          <div className="lg:hidden mt-6 bg-gray-50 border border-gray-200 rounded-lg p-4">
-            <p className="text-sm font-bold text-gray-900 mb-1">Navigasi Soal</p>
-            <p className="text-xs text-gray-500 mb-3">{jumlahDijawab} dari {daftarSoal.length} terjawab</p>
-            <div className="grid grid-cols-5 gap-2">
-              {daftarSoal.map((s, i) => {
-                const sudahDijawab = jawabanMap[s.id] && jawabanMap[s.id] !== '';
-                const aktif = i === soalIndex;
-                return (
-                  <button
-                    key={s.id}
-                    onClick={() => lompatKeSoal(i)}
-                    className={`w-9 h-9 rounded-full text-sm font-bold border-2 cursor-pointer
-                      ${aktif ? 'bg-slate-800 text-white border-slate-800' : ''}
-                      ${!aktif && sudahDijawab ? 'bg-green-100 text-green-800 border-green-400' : ''}
-                      ${!aktif && !sudahDijawab ? 'bg-white text-gray-500 border-gray-300' : ''}
-                    `}
-                  >
-                    {i + 1}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          <div className="lg:hidden mt-5">{NavigasiSoal}</div>
         </div>
-      </main>
+      </PageBackground>
     );
   }
 
+  // ===== TAMPILAN: SELESAI (pesan asli kamu, dipertahankan) =====
   return (
-    <main className="max-w-4xl mx-auto mt-10 p-5">
-      <h1 className="text-2xl font-bold text-gray-900 mb-2 text-center">ASSESSMENT SELESAI</h1>
-      <br />
-      <p className="text-gray-900">Terima kasih {dataDiri.nama}, atas partisipasi dan waktu yang telah Anda luangkan untuk mengikuti Assessment Online PT Sokkatama.</p>
-      <br />
-      <p className="text-gray-900">Jawaban Anda telah berhasil tersimpan dalam sistem dan akan diproses oleh tim Human Resources sesuai dengan tahapan rekrutmen maupun evaluasi yang berlaku.</p>
-      <br />
-      <p className="text-gray-900">Seluruh hasil assessment akan dijaga kerahasiaannya dan digunakan sebagai salah satu bahan pertimbangan dalam proses penilaian kompetensi.</p>
-      <br />
-      <p className="text-gray-900">Kami mengucapkan terima kasih atas komitmen, kejujuran, dan profesionalisme Anda selama mengikuti assessment.</p>
-    </main>
+    <PageBackground className="flex items-center justify-center p-5">
+      <Card className="w-full max-w-lg p-8">
+        <div className="flex justify-center mb-4">
+          <Image src="/logo.png" alt="Logo Sokka Fiber" width={250} height={250} priority />
+        </div>
+        <h1 className="font-display text-2xl font-bold text-[#10192E] mb-4 text-center">ASSESSMENT SELESAI</h1>
+        <div className="space-y-3 text-slate-600 text-sm leading-relaxed">
+          <p>Terima kasih <b className="text-[#10192E]">{dataDiri.nama}</b>, atas partisipasi dan waktu yang telah Anda luangkan untuk mengikuti Assessment Online PT Sokkatama.</p>
+          <p>Jawaban Anda telah berhasil tersimpan dalam sistem dan akan diproses oleh tim Human Resources sesuai dengan tahapan rekrutmen maupun evaluasi yang berlaku.</p>
+          <p>Seluruh hasil assessment akan dijaga kerahasiaannya dan digunakan sebagai salah satu bahan pertimbangan dalam proses penilaian kompetensi.</p>
+          <p>Kami mengucapkan terima kasih atas komitmen, kejujuran, dan profesionalisme Anda selama mengikuti assessment.</p>
+        </div>
+      </Card>
+    </PageBackground>
   );
 }
