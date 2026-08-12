@@ -1,16 +1,73 @@
 @import "tailwindcss";
 
+@theme {
+  --font-display: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  --color-navy-50: #f4f7fb;
+  --color-navy-100: #e7edf5;
+  --color-navy-900: #10192e;
+  --color-navy-950: #0a1120;
+
+  --color-teal-600: #1f6f78;
+  --color-teal-700: #164f56;
+  --color-teal-800: #123f45;
+
+  --color-amber-400: #e8a33d;
+
+  --shadow-card: 0 1px 2px rgb(16 25 46 / 0.05), 0 8px 24px -6px rgb(16 25 46 / 0.1);
+  --shadow-card-hover: 0 2px 4px rgb(16 25 46 / 0.06), 0 18px 40px -8px rgb(16 25 46 / 0.18);
+  --shadow-soft: 0 1px 2px rgb(16 25 46 / 0.05);
+}
+
 :root {
-  --background: #ffffff;
+  --background: #eef2f7;
   --foreground: #171717;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-inter), sans-serif;
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-.font-display {
-  font-family: var(--font-space-grotesk), sans-serif;
+::selection {
+  background: rgb(31 111 120 / 0.2);
+}
+
+:focus-visible {
+  outline: 2px solid #1f6f78;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Scrollbar halus (WebKit) */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #c7d0dc;
+  border-radius: 9999px;
+  border: 2px solid #eef2f7;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #aeb9c9;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out both;
 }

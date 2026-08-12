@@ -1,0 +1,22 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper: akun admin (baca data dari Firestore)
+    function isAdmin() {
+      return request.auth != null
+        && firestore.exists(/databases/(default)/documents/adminUsers/$(request.auth.uid))
+        && firestore.get(/databases/(default)/documents/adminUsers/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    match /pelanggaran/{userId}/{fileName} {
+      // Peserta hanya boleh mengunggah & melihat snapshot miliknya; admin melihat semua
+      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      allow create, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Tolak semua akses lain di bucket
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

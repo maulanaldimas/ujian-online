@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
+import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -11,6 +12,24 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
+function verifikasiKonfigurasi() {
+  const kunciKosong = Object.entries(firebaseConfig)
+    .filter(([, nilai]) => !nilai)
+    .map(([kunci]) => kunci);
+
+  if (kunciKosong.length > 0) {
+    throw new Error(
+      `Konfigurasi Firebase tidak lengkap. Variabel berikut belum diisi: ${kunciKosong.join(
+        ', '
+      )}. Periksa file .env.local (lihat .env.example).`
+    );
+  }
+}
+
+verifikasiKonfigurasi();
+
 const app = initializeApp(firebaseConfig);
+
 export const db = getFirestore(app);
 export const auth = getAuth(app);
+export const storage = getStorage(app);

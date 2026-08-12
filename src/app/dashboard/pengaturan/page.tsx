@@ -2,9 +2,9 @@
 import { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
-import { db, auth } from '../../../firebase';
-import LoginGate from '../../components/LoginGate';
-import { PageBackground, Card, Button, TopNav } from '../../components/ui';
+import { db, auth } from '@/firebase';
+import LoginGate from '@/app/components/LoginGate';
+import { PageBackground, Card, Button, TopNav, Spinner } from '@/app/components/ui';
 
 export default function Pengaturan() {
   return (
@@ -14,7 +14,7 @@ export default function Pengaturan() {
   );
 }
 
-function ToggleRow({ judul, deskripsi, aktif, onToggle }) {
+function ToggleRow({ judul, deskripsi, aktif, onToggle }: { judul: string; deskripsi: string; aktif: boolean; onToggle: () => void }) {
   return (
     <div className="flex justify-between items-center py-4 border-b border-slate-100 last:border-b-0">
       <div className="pr-4">
@@ -68,7 +68,10 @@ function PengaturanIsi() {
   if (loadingPengaturan) {
     return (
       <PageBackground className="flex items-center justify-center">
-        <p className="text-slate-500 font-display">Memuat pengaturan...</p>
+        <div className="text-center">
+          <Spinner className="mx-auto h-7 w-7" />
+          <p className="text-slate-500 font-display mt-3">Memuat pengaturan...</p>
+        </div>
       </PageBackground>
     );
   }
@@ -78,6 +81,7 @@ function PengaturanIsi() {
       <div className="max-w-xl mx-auto">
         <TopNav
           title="Pengaturan Proctoring"
+          subtitle="Aktifkan atau nonaktifkan pengawasan kamera dan mikrofon"
           links={[{ href: '/dashboard', label: '← Dashboard' }]}
           onLogout={() => signOut(auth)}
         />
