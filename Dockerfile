@@ -12,7 +12,7 @@ COPY . .
 
 # For PostgreSQL production, swap Prisma provider and simplify prisma.ts
 RUN sed -i 's/provider = "sqlite"/provider = "postgresql"/' prisma/schema.prisma
-RUN printf 'import { PrismaClient } from "@prisma/client";\nconst globalForPrisma = globalThis as unknown as { prisma: PrismaClient };\nexport const prisma = globalForPrisma.prisma || new PrismaClient();\nif (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;\n' > src/lib/prisma.ts
+RUN printf 'import { PrismaPg } from "@prisma/adapter-pg";\nimport { PrismaClient } from "@prisma/client";\nconst globalForPrisma = globalThis as unknown as { prisma: PrismaClient };\nfunction createClient() {\n  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });\n  return new PrismaClient({ adapter });\n}\nexport const prisma = globalForPrisma.prisma || createClient();\nif (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;\n' > src/lib/prisma.ts
 
 RUN npx prisma generate
 RUN npm run build
@@ -34,6 +34,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder /app/node_modules/pg ./node_modules/pg
 COPY --from=builder /app/node_modules/dotenv ./node_modules/dotenv
 COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 COPY --from=builder /app/package.json ./package.json
