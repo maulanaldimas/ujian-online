@@ -8,6 +8,7 @@ import {
   hitungPersenSkor,
   parseBarisSoal,
 } from './utils';
+import { sanitizeHtml } from './constants';
 
 describe('acakUrutan', () => {
   it('mengembalikan elemen yang sama dengan panjang sama', () => {
@@ -126,5 +127,105 @@ describe('parseBarisSoal', () => {
   it('menolak baris tanpa pertanyaan', () => {
     const hasil = parseBarisSoal({ Pertanyaan: '  ', Tipe: 'esai' }, 1);
     expect(hasil.valid).toBe(false);
+  });
+
+  it('memisahkan opsi dengan newline', () => {
+    const hasil = parseBarisSoal(
+      { Pertanyaan: 'X?', Tipe: 'pilihan_ganda', Opsi: 'A\nB\nC', Kunci: 'A' },
+      1
+    );
+    expect(hasil.pilihan).toEqual(['A', 'B', 'C']);
+    expect(hasil.valid).toBe(true);
+  });
+
+  it('memisahkan opsi dengan pipe', () => {
+    const hasil = parseBarisSoal(
+      { Pertanyaan: 'X?', Tipe: 'pilihan_ganda', Opsi: 'A|B|C', Kunci: 'C' },
+      1
+    );
+    expect(hasil.pilihan).toEqual(['A', 'B', 'C']);
+    expect(hasil.valid).toBe(true);
+  });
+
+  it('menolak PG dengan kurang dari 2 opsi', () => {
+    const hasil = parseBarisSoal(
+      { Pertanyaan: 'X?', Tipe: 'pilihan_ganda', Opsi: 'A', Kunci: 'A' },
+      1
+    );
+    expect(hasil.valid).toBe(false);
+  });
+});
+
+describe('hitungGrade boundary cases', () => {
+  const soal: Record<string, any> = {};
+  const kunci: Record<string, string> = {};
+  for (let i = 0; i < 100; i++) {
+    const id = `q${i}`;
+    soal[id] = { tipe: 'pilihan_ganda' };
+    kunci[id] = 'A';
+  }
+
+  it('43% = Review', () => {
+    const jawaban: Record<string, string> = {};
+    for (let i = 0; i < 43; i++) jawaban[`q${i}`] = 'A';
+    expect(hitungGrade({ jawaban }, soal, kunci).label).toBe('Review');
+  });
+
+  it('44% = Grade A', () => {
+    const jawaban: Record<string, string> = {};
+    for (let i = 0; i < 44; i++) jawaban[`q${i}`] = 'A';
+    expect(hitungGrade({ jawaban }, soal, kunci).label).toBe('Grade A');
+  });
+
+  it('79% = Grade A', () => {
+    const jawaban: Record<string, string> = {};
+    for (let i = 0; i < 79; i++) jawaban[`q${i}`] = 'A';
+    expect(hitungGrade({ jawaban }, soal, kunci).label).toBe('Grade A');
+  });
+
+  it('80% = Grade B', () => {
+    const jawaban: Record<string, string> = {};
+    for (let i = 0; i < 80; i++) jawaban[`q${i}`] = 'A';
+    expect(hitungGrade({ jawaban }, soal, kunci).label).toBe('Grade B');
+  });
+
+  it('89% = Grade B', () => {
+    const jawaban: Record<string, string> = {};
+    for (let i = 0; i < 89; i++) jawaban[`q${i}`] = 'A';
+    expect(hitungGrade({ jawaban }, soal, kunci).label).toBe('Grade B');
+  });
+
+  it('90% = Grade C', () => {
+    const jawaban: Record<string, string> = {};
+    for (let i = 0; i < 90; i++) jawaban[`q${i}`] = 'A';
+    expect(hitungGrade({ jawaban }, soal, kunci).label).toBe('Grade C');
+  });
+
+  it('100% = Grade C', () => {
+    const jawaban: Record<string, string> = {};
+    for (let i = 0; i < 100; i++) jawaban[`q${i}`] = 'A';
+    expect(hitungGrade({ jawaban }, soal, kunci).label).toBe('Grade C');
+  });
+});
+
+describe('sanitizeHtml', () => {
+  it('menghapus tag HTML', () => {
+    expect(sanitizeHtml('<p>Hello <b>world</b></p>')).toBe('Hello world');
+  });
+
+  it('menghapus tag self-closing', () => {
+    expect(sanitizeHtml('Line<br/>break')).toBe('Linebreak');
+  });
+
+  it('trim spasi', () => {
+    expect(sanitizeHtml('  <a>test</a>  ')).toBe('test');
+  });
+
+  it('teks tanpa tag tetap sama', () => {
+    expect(sanitizeHtml('plain text')).toBe('plain text');
+  });
+
+  it('string kosong mengembalikan kosong', () => {
+    expect(sanitizeHtml('')).toBe('');
   });
 });

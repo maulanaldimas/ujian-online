@@ -1,3 +1,5 @@
+import type { BadgeTone } from './constants';
+
 export function acakUrutan<T>(array: T[]): T[] {
   const hasil = [...array];
   for (let i = hasil.length - 1; i > 0; i--) {
@@ -19,13 +21,20 @@ export interface SoalData {
   tipe?: string;
   pilihan?: string[];
   urutan?: number;
-  [k: string]: any;
 }
 
 export interface LogPelanggaran {
   tipe: string;
   waktu: number;
   snapshotUrl?: string | null;
+}
+
+export interface KelompokSoal {
+  id?: string;
+  nama?: string;
+  level?: string;
+  divisi?: string;
+  departemen?: string;
 }
 
 export interface PesertaData {
@@ -35,14 +44,18 @@ export interface PesertaData {
   noHp?: string;
   lokasiKerja?: string;
   nikKtp?: string;
+  level?: string;
+  divisi?: string;
+  departemen?: string;
+  kelompokId?: string;
   status?: string;
   jawaban?: Record<string, string>;
   totalPelanggaran?: number;
   logPelanggaran?: LogPelanggaran[];
-  waktuMulai?: any;
-  waktuSelesai?: any;
-  terakhirDisimpan?: any;
-  [k: string]: any;
+  waktuConsent?: string | Date | null;
+  waktuMulai?: string | Date | null;
+  waktuSelesai?: string | Date | null;
+  terakhirDisimpan?: string | Date | null;
 }
 
 export function hitungSkor(peserta: PesertaData, soalFullMap: Record<string, SoalData>, kunciMap: Record<string, string>): { benar: number; totalPG: number } {
@@ -66,7 +79,7 @@ export function hitungGrade(
   peserta: PesertaData,
   soalFullMap: Record<string, SoalData>,
   kunciMap: Record<string, string>
-): { label: string; tone: string } {
+): { label: string; tone: BadgeTone } {
   const { benar, totalPG } = hitungSkor(peserta, soalFullMap, kunciMap);
   if (totalPG === 0) return { label: '—', tone: 'slate' };
   const persen = (benar / totalPG) * 100;

@@ -1,6 +1,6 @@
 # Ujian Online Rekrutmen
 
-Aplikasi ujian online untuk proses rekrutmen dan evaluasi karyawan **PT Sokka Tama Fiber**, dibangun dengan **Next.js (App Router)** dan **Firebase**. Sistem dilengkapi pengawasan proctoring (kamera, mikrofon, dan aktivitas layar) serta dashboard admin untuk memantau hasil.
+Aplikasi ujian online untuk proses rekrutmen dan evaluasi karyawan, dibangun dengan **Next.js 16 (App Router)**, **Prisma ORM**, **SQLite** (dev) / **PostgreSQL** (produksi), dan **JWT authentication**. Sistem dilengkapi pengawasan proctoring (kamera, mikrofon, dan aktivitas layar) serta dashboard admin untuk memantau hasil.
 
 ## Fitur
 
@@ -17,7 +17,7 @@ Aplikasi ujian online untuk proses rekrutmen dan evaluasi karyawan **PT Sokka Ta
 
 ### Admin (HR)
 - **Dashboard** — daftar peserta, pencarian, filter status, pengurutan, detail jawaban, log pelanggaran beserta foto, serta ekspor hasil ke Excel (`.xlsx`).
-- **Kelola Soal** (khusus admin) — tambah/edit/hapus soal, atur urutan, kelola kunci jawaban pilihan ganda.
+- **Kelompok Soal** (khusus admin) — buat/edit/hapus kelompok soal, tambah soal di dalamnya, atur urutan, impor dari Excel, kelola kunci jawaban pilihan ganda.
 - **Pengaturan** — aktif/nonaktifkan deteksi kamera & mikrofon untuk ujian berikutnya.
 - **Logout** dan kontrol akses berbasis peran (`admin` / lainnya).
 
@@ -25,18 +25,22 @@ Aplikasi ujian online untuk proses rekrutmen dan evaluasi karyawan **PT Sokka Ta
 
 | Lapisan | Teknologi |
 | --- | --- |
-| Framework | Next.js 16 (App Router) |
+| Framework | Next.js 16 (App Router, Turbopack) |
 | UI | React 19 + Tailwind CSS 4 |
-| Backend & Auth | Firebase (Firestore, Auth, Storage) |
+| ORM | Prisma 7 (SQLite dev / PostgreSQL prod) |
+| Database | SQLite 3 (dev) / PostgreSQL 16 (Docker & Railway) |
+| Auth | JWT (jose) + bcryptjs |
 | Proctoring | MediaPipe Tasks Vision (deteksi wajah) |
 | Ekspor | SheetJS (`xlsx`) |
+| Deploy | Docker + Railway + GitHub Actions CI/CD |
 
 ## Persyaratan
 
-- Node.js 18.18 atau lebih baru (disarankan 20+).
-- Proyek Firebase aktif (Firestore, Authentication, Storage).
+- Node.js 20 atau lebih baru.
 
 ## Menjalankan Proyek
+
+### Development (SQLite)
 
 1. **Install dependensi**
 
@@ -46,61 +50,109 @@ Aplikasi ujian online untuk proses rekrutmen dan evaluasi karyawan **PT Sokka Ta
 
 2. **Siapkan variabel lingkungan**
 
-   Salin `.env.example` menjadi `.env.local` dan isi dengan kredensial Firebase Anda:
-
    ```bash
-   cp .env.example .env.local
+   cp .env.example .env
    ```
 
-   Buka `.env.local` dan isi setiap nilai dari Firebase Console → *Project settings → Your apps → SDK setup*.
+3. **Jalankan migrasi database & seed**
 
-3. **Jalankan mode pengembangan**
+   ```bash
+   npx prisma migrate dev --name init
+   npx prisma db seed
+   ```
+
+   Login admin default: `admin@ujian.com` / `admin123`
+
+4. **Jalankan mode pengembangan**
 
    ```bash
    npm run dev
    ```
 
-   Buka [http://localhost:3000](http://localhost:3000). Halaman peserta berada di `/`, sedangkan dashboard admin di `/dashboard`.
+   Buka [http://localhost:3000](http://localhost:3000). Halaman peserta di `/ujian`, dashboard admin di `/dashboard`.
 
-4. **Build & jalankan untuk produksi**
+### Docker (PostgreSQL)
+
+1. **Buat file `.env` dari template**
 
    ```bash
-   npm run build
-   npm start
+   cp .env.example .env
+   # Edit .env: set DATABASE_URL dan JWT_SECRET
    ```
 
-## Struktur Firebase
+2. **Jalankan dengan Docker Compose**
 
-Koleksi yang digunakan aplikasi:
+   ```bash
+   docker compose up -d --build
+   ```
 
-- `pesertaUjian` — data peserta, jawaban, status, waktu mulai/selesai, dan log pelanggaran.
-- `soalUjian` — daftar soal (tipe `esai` atau `pilihan_ganda`), diurutkan dengan kolom `urutan`.
-- `kunciJawaban` — kunci jawaban untuk soal pilihan ganda (`{ jawabanBenar }`).
-- `pengaturan/proctoring` — pengaturan `kameraAktif` dan `audioAktif`.
-- `adminUsers` — akses admin HR: `{ uid: { role: "admin" } }`.
+   Aplikasi berjalan di `http://localhost:3000` dengan PostgreSQL di port 5432.
 
-Storage: foto pelanggaran disimpan di `pelanggaran/{idPeserta}/{timestamp}.jpg`.
+### Deploy ke Railway
 
-> **Catatan keamanan**: Terapkan aturan keamanan (Firestore Security Rules) sesuai kebutuhan agar peserta tidak dapat membaca/mengubah data peserta lain atau kunci jawaban.
+1. Push repo ke GitHub
+2. Hubungkan repo ke Railway
+3. Set environment variables di Railway dashboard:
+   - `DATABASE_URL` — Railway PostgreSQL connection string (otomatis dari service PostgreSQL)
+   - `JWT_SECRET` — secret key yang kuat
+4. Deploy otomatis via GitHub Actions atau Railway auto-deploy
+
+## Struktur Database (Prisma)
+
+| Model | Keterangan |
+| --- | --- |
+| `User` | Admin users (email, password hash, role) |
+| `KelompokSoal` | Kelompok soal (nama, level, divisi, departemen) |
+| `Soal` | Soal ujian (teks, tipe, pilihan, urutan) |
+| `KunciJawaban` | Kunci jawaban pilihan ganda |
+| `PesertaUjian` | Data peserta, jawaban, status, log pelanggaran |
+| `PenilaianEsai` | Skor esai manual per peserta |
+| `Pengaturan` | Pengaturan proctoring (kamera & audio) |
 
 ## Struktur Kode
 
 ```
 src/
 ├── app/
+│   ├── api/                    # API routes (REST)
+│   │   ├── auth/               # Login, me, logout
+│   │   ├── peserta/            # CRUD peserta + status
+│   │   ├── kelompok/           # CRUD kelompok + soal + reorder
+│   │   ├── pengaturan/         # Pengaturan proctoring
+│   │   └── penilaian/          # Penilaian esai
 │   ├── components/
-│   │   ├── ui.js          # Komponen UI dasar (Button, Card, Input, Badge, dsb.)
-│   │   └── LoginGate.js   # Gerbang autentikasi & cek peran untuk halaman admin
+│   │   ├── ui.tsx              # Komponen UI dasar
+│   │   ├── LoginGate.tsx       # Gerbang autentikasi JWT
+│   │   └── peserta/            # Komponen alur peserta
+│   │       ├── ConsentStep.tsx
+│   │       ├── FormStep.tsx
+│   │       ├── InstruksiStep.tsx
+│   │       ├── MenungguStep.tsx
+│   │       ├── UjianScreen.tsx
+│   │       └── SelesaiScreen.tsx
 │   ├── dashboard/
-│   │   ├── page.js        # Dashboard hasil ujian (peserta, skor, ekspor Excel)
-│   │   ├── pengaturan/    # Pengaturan proctoring
-│   │   └── soal/          # Kelola soal & kunci jawaban
-│   ├── layout.js          # Root layout (font, metadata)
-│   ├── page.js            # Halaman peserta (alur ujian + proctoring)
-│   ├── globals.css        # Tailwind + variabel tema
-│   ├── error.js           # Error boundary
-│   └── not-found.js       # Halaman 404
-└── firebase.js            # Inisialisasi Firebase (db, auth, storage)
+│   │   ├── page.tsx            # Dashboard hasil ujian
+│   │   ├── kelompok/page.tsx   # Kelola kelompok soal
+│   │   └── pengaturan/page.tsx # Pengaturan proctoring
+│   ├── ujian/page.tsx          # Halaman peserta
+│   ├── layout.tsx
+│   ├── globals.css
+│   ├── error.tsx
+│   └── not-found.tsx
+├── lib/
+│   ├── auth.ts                 # JWT utilities (jose)
+│   ├── prisma.ts               # Prisma client singleton
+│   ├── constants.ts            # Konstanta bersama
+│   └── utils.ts                # Fungsi utilitas & tipe data
+├── prisma/
+│   ├── schema.prisma           # Database schema
+│   ├── config.ts               # Prisma config
+│   ├── seed.ts                 # Seed admin user
+│   └── migrations/             # Database migrations
+├── Dockerfile                  # Multi-stage Node.js build
+├── docker-compose.yml          # App + PostgreSQL
+├── railway.json                # Railway deploy config
+└── .github/workflows/ci.yml   # CI/CD pipeline
 ```
 
 ## Script
@@ -111,7 +163,28 @@ src/
 | `npm run build` | Membuat build produksi |
 | `npm start` | Menjalankan build produksi |
 | `npm run lint` | Menjalankan ESLint |
+| `npx prisma migrate dev` | Jalankan migrasi database |
+| `npx prisma db seed` | Seed data awal |
+| `npx vitest run` | Jalankan tests |
+
+## API Routes
+
+| Endpoint | Method | Keterangan |
+| --- | --- | --- |
+| `/api/auth/login` | POST | Login admin |
+| `/api/auth/me` | GET | Cek sesi aktif |
+| `/api/auth/logout` | POST | Logout |
+| `/api/peserta` | GET/POST | List & buat peserta |
+| `/api/peserta/[id]` | GET/PUT/DELETE | Detail, update, hapus peserta |
+| `/api/peserta/[id]/status` | GET | Cek status peserta |
+| `/api/kelompok` | GET/POST | List & buat kelompok soal |
+| `/api/kelompok/[id]` | GET/PUT/DELETE | Detail, update, hapus kelompok |
+| `/api/kelompok/[id]/soal` | GET/POST | List & tambah soal |
+| `/api/kelompok/[id]/soal/[soalId]` | PUT/DELETE | Update & hapus soal |
+| `/api/kelompok/[id]/soal/reorder` | POST | Ubah urutan soal |
+| `/api/pengaturan` | GET/PUT | Pengaturan proctoring |
+| `/api/penilaian` | GET/POST | Penilaian esai |
 
 ## Kontribusi
 
-Bagi tim pengembangan: buat branch fitur, lakukan perubahan, lalu ajukan pull request. Seluruh perubahan harus lolos `npm run lint` sebelum di-merge.
+Bagi tim pengembangan: buat branch fitur, lakukan perubahan, lalu ajukan pull request. Seluruh perubahan harus lolos `npx tsc --noEmit`, `npx vitest run`, dan `npx next build` sebelum di-merge.

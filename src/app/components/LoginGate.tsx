@@ -1,50 +1,92 @@
 'use client';
-import { useState, useEffect, type FormEvent, type ReactNode } from 'react';
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '@/firebase';
+import { useState, useEffect, useCallback, type FormEvent, type ReactNode } from 'react';
 import { PageBackground, Card, Label, Input, Button, Spinner } from './ui';
 import Image from 'next/image';
+import { LOGO_SRC } from '@/lib/constants';
 
-export default function LoginGate({ children }: { children: (user: User, role: string | null) => ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [role, setRole] = useState<string | null>(null);
+const MAX_percobaan = 5;
+const LOCKOUT_DETIK = 300;
+
+function sanitizeInput(teks: string): string {
+  return teks.replace(/<[^>]*>/g, '').trim();
+}
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  name?: string;
+  role: string;
+}
+
+export default function LoginGate({ children }: { children: (user: AuthUser) => ReactNode }) {
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [cekSelesai, setCekSelesai] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [percobaanGagal, setPercobaanGagal] = useState(0);
+  const [sisaLockout, setSisaLockout] = useState(0);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (u) => {
-      setUser(u);
-      if (u) {
-        try {
-          const snap = await getDoc(doc(db, 'adminUsers', u.uid));
-          setRole(snap.exists() ? snap.data().role : null);
-        } catch (err) {
-          console.error('Gagal ambil role:', err);
-          setRole(null);
+    if (sisaLockout <= 0) return;
+    const timer = setInterval(() => {
+      setSisaLockout((s) => {
+        if (s <= 1) { setPercobaanGagal(0); return 0; }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [sisaLockout]);
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((r) => r.json())
+      .then(({ user: u }) => {
+        if (u && u.role === 'admin') {
+          setUser(u);
         }
-      } else {
-        setRole(null);
-      }
-      setCekSelesai(true);
-    });
-    return () => unsub();
+        setCekSelesai(true);
+      })
+      .catch(() => setCekSelesai(true));
   }, []);
 
-  async function handleLogin(e: FormEvent<HTMLFormElement>) {
+  const handleLogin = useCallback(async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (sisaLockout > 0) return;
     setError('');
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-    } catch (err) {
-      setError('Email atau password salah.');
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: sanitizeInput(email), password }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Login gagal');
+      }
+      const { user: u } = await res.json();
+      if (u.role !== 'admin') {
+        setError('Akun ini bukan admin.');
+        await fetch('/api/auth/logout', { method: 'POST' });
+        setLoading(false);
+        return;
+      }
+      setUser(u);
+      setPercobaanGagal(0);
+    } catch (err: any) {
+      const next = percobaanGagal + 1;
+      setPercobaanGagal(next);
+      if (next >= MAX_percobaan) {
+        setSisaLockout(LOCKOUT_DETIK);
+        setError(`Terlalu banyak percobaan gagal. Coba lagi dalam ${LOCKOUT_DETIK / 60} menit.`);
+      } else {
+        setError(err.message || `Email atau password salah. Sisa percobaan: ${MAX_percobaan - next}.`);
+      }
     }
     setLoading(false);
-  }
+  }, [email, password, percobaanGagal, sisaLockout]);
 
   if (!cekSelesai) {
     return (
@@ -62,9 +104,9 @@ export default function LoginGate({ children }: { children: (user: User, role: s
       <PageBackground className="flex items-center justify-center p-5">
         <Card className="w-full max-w-sm p-8">
           <div className="flex justify-center mb-4">
-            <Image src="/logo.png" alt="Logo" width={72} height={72} />
+            <Image src={LOGO_SRC} alt="Logo" width={72} height={72} />
           </div>
-          <h1 className="font-display text-xl font-bold text-[#10192E] text-center mb-1">Login HR</h1>
+          <h1 className="font-display text-xl font-bold text-navy-900 text-center mb-1">Admin Login</h1>
           <p className="text-sm text-slate-500 text-center mb-6">Masuk untuk mengelola ujian rekrutmen</p>
           <form onSubmit={handleLogin}>
             <Label>Email</Label>
@@ -72,8 +114,8 @@ export default function LoginGate({ children }: { children: (user: User, role: s
             <Label>Password</Label>
             <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="mb-4" placeholder="••••••••" />
             {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Memproses...' : 'Masuk'}
+            <Button type="submit" fullWidth isLoading={loading} disabled={sisaLockout > 0}>
+              {sisaLockout > 0 ? `Tunggu ${Math.ceil(sisaLockout / 60)}m` : 'Masuk'}
             </Button>
           </form>
         </Card>
@@ -81,23 +123,5 @@ export default function LoginGate({ children }: { children: (user: User, role: s
     );
   }
 
-  // Sudah login tapi tidak terdaftar sebagai staff HR sama sekali
-  if (!role) {
-    return (
-      <PageBackground className="flex items-center justify-center p-5">
-        <Card className="w-full max-w-sm p-8 text-center">
-          <p className="text-4xl mb-3">🚫</p>
-          <h1 className="font-display text-lg font-bold text-[#10192E] mb-2">Akses Ditolak</h1>
-          <p className="text-sm text-slate-500 mb-5">
-            Akun <b>{user.email}</b> belum terdaftar sebagai staff HR. Hubungi admin sistem untuk diberikan akses.
-          </p>
-          <Button variant="secondary" onClick={() => signOut(auth)} className="w-full">
-            Logout
-          </Button>
-        </Card>
-      </PageBackground>
-    );
-  }
-
-  return children(user, role);
+  return children(user);
 }

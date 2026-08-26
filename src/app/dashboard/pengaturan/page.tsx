@@ -1,10 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { signOut } from 'firebase/auth';
-import { db, auth } from '@/firebase';
 import LoginGate from '@/app/components/LoginGate';
-import { PageBackground, Card, Button, TopNav, Spinner } from '@/app/components/ui';
+import { PageBackground, Card, Button, TopNav, useToast } from '@/app/components/ui';
+import { Check } from 'lucide-react';
 
 export default function Pengaturan() {
   return (
@@ -18,12 +16,15 @@ function ToggleRow({ judul, deskripsi, aktif, onToggle }: { judul: string; deskr
   return (
     <div className="flex justify-between items-center py-4 border-b border-slate-100 last:border-b-0">
       <div className="pr-4">
-        <p className="font-display font-bold text-[#10192E]">{judul}</p>
+        <p className="font-display font-bold text-navy-900">{judul}</p>
         <p className="text-sm text-slate-500">{deskripsi}</p>
       </div>
       <button
+        role="switch"
+        aria-checked={aktif}
+        aria-label={judul}
         onClick={onToggle}
-        className={`w-14 h-8 rounded-full relative transition cursor-pointer shrink-0 ${aktif ? 'bg-[#1F6F78]' : 'bg-slate-300'}`}
+        className={`w-14 h-8 rounded-full relative transition cursor-pointer shrink-0 ${aktif ? 'bg-teal-600' : 'bg-slate-300'}`}
       >
         <span className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all ${aktif ? 'left-7' : 'left-1'}`} />
       </button>
@@ -32,6 +33,7 @@ function ToggleRow({ judul, deskripsi, aktif, onToggle }: { judul: string; deskr
 }
 
 function PengaturanIsi() {
+  const { toast, toastEl } = useToast();
   const [kameraAktif, setKameraAktif] = useState(true);
   const [audioAktif, setAudioAktif] = useState(true);
   const [loadingPengaturan, setLoadingPengaturan] = useState(true);
@@ -40,9 +42,9 @@ function PengaturanIsi() {
 
   useEffect(() => {
     async function muatPengaturan() {
-      const docSnap = await getDoc(doc(db, 'pengaturan', 'proctoring'));
-      if (docSnap.exists()) {
-        const data = docSnap.data();
+      const res = await fetch('/api/pengaturan');
+      if (res.ok) {
+        const data = await res.json();
         setKameraAktif(data.kameraAktif ?? true);
         setAudioAktif(data.audioAktif ?? true);
       }
@@ -55,11 +57,15 @@ function PengaturanIsi() {
     setSedangSimpan(true);
     setPesanSukses(false);
     try {
-      await setDoc(doc(db, 'pengaturan', 'proctoring'), { kameraAktif, audioAktif });
+      await fetch('/api/pengaturan', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kameraAktif, audioAktif }),
+      });
       setPesanSukses(true);
       setTimeout(() => setPesanSukses(false), 3000);
     } catch (err) {
-      alert('Gagal menyimpan pengaturan.');
+      toast('Gagal menyimpan pengaturan.', 'red');
       console.error(err);
     }
     setSedangSimpan(false);
@@ -67,10 +73,28 @@ function PengaturanIsi() {
 
   if (loadingPengaturan) {
     return (
-      <PageBackground className="flex items-center justify-center">
-        <div className="text-center">
-          <Spinner className="mx-auto h-7 w-7" />
-          <p className="text-slate-500 font-display mt-3">Memuat pengaturan...</p>
+      <PageBackground className="p-5">
+        <div className="max-w-6xl mx-auto">
+          <TopNav
+            title="Pengaturan Proctoring"
+            links={[
+              { href: '/dashboard', label: 'Dashboard' },
+              { href: '/dashboard/kelompok', label: 'Kelompok Soal' },
+            ]}
+          />
+          <Card className="p-6 mb-4">
+            {Array.from({ length: 2 }).map((_, i) => (
+              <div key={i} className="flex justify-between items-center py-4 border-b border-slate-100 last:border-b-0">
+                <div className="pr-4 flex-1">
+                  <div className="h-4 w-48 skeleton mb-2" />
+                  <div className="h-3 w-full max-w-sm skeleton" />
+                </div>
+                <div className="w-14 h-8 rounded-full skeleton shrink-0" />
+              </div>
+            ))}
+          </Card>
+          <div className="h-3 w-80 max-w-full skeleton mb-4 rounded-md" />
+          <div className="h-11 w-40 skeleton rounded-xl" />
         </div>
       </PageBackground>
     );
@@ -78,12 +102,15 @@ function PengaturanIsi() {
 
   return (
     <PageBackground className="p-5">
-      <div className="max-w-xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         <TopNav
           title="Pengaturan Proctoring"
           subtitle="Aktifkan atau nonaktifkan pengawasan kamera dan mikrofon"
-          links={[{ href: '/dashboard', label: '← Dashboard' }]}
-          onLogout={() => signOut(auth)}
+          links={[
+            { href: '/dashboard', label: 'Dashboard' },
+            { href: '/dashboard/kelompok', label: 'Kelompok Soal' },
+          ]}
+          onLogout={() => fetch('/api/auth/logout', { method: 'POST' }).then(() => window.location.reload())}
         />
 
         <Card className="p-6 mb-4">
@@ -109,8 +136,9 @@ function PengaturanIsi() {
           <Button onClick={simpanPengaturan} disabled={sedangSimpan}>
             {sedangSimpan ? 'Menyimpan...' : 'Simpan Pengaturan'}
           </Button>
-          {pesanSukses && <span className="text-green-700 font-semibold text-sm">✓ Tersimpan</span>}
+          {pesanSukses && <span className="text-green-700 font-semibold text-sm"><Check size={14} className="inline mr-1" />Tersimpan</span>}
         </div>
+        {toastEl}
       </div>
     </PageBackground>
   );

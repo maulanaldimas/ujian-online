@@ -1,0 +1,110 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String?
+  role      String   @default("admin")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model KelompokSoal {
+  id         String   @id @default(cuid())
+  nama       String
+  level      String?
+  divisi     String?
+  departemen String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  soal        Soal[]
+  peserta     PesertaUjian[]
+
+  @@map("kelompok_soal")
+}
+
+model Soal {
+  id          String   @id @default(cuid())
+  kelompokId  String
+  teks        String
+  tipe        String   @default("esai")
+  pilihan     String?  @default("[]")
+  urutan      Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  kelompok KelompokSoal @relation(fields: [kelompokId], references: [id], onDelete: Cascade)
+  kunci    KunciJawaban?
+
+  @@map("soal")
+}
+
+model KunciJawaban {
+  id           String @id @default(cuid())
+  soalId       String @unique
+  jawabanBenar String @default("")
+
+  soal Soal @relation(fields: [soalId], references: [id], onDelete: Cascade)
+
+  @@map("kunci_jawaban")
+}
+
+model PesertaUjian {
+  id                String    @id @default(cuid())
+  nama              String
+  email             String?
+  noHp              String?
+  lokasiKerja       String?
+  nikKtp            String?
+  authUid           String?
+  status            String    @default("belum_ujian")
+  consentDiberikan  Boolean   @default(false)
+  waktuConsent      DateTime?
+  waktuMulai        DateTime?
+  waktuSelesai      DateTime?
+  kelompokId        String?
+  level             String?
+  divisi            String?
+  departemen        String?
+  jawaban           String    @default("{}")
+  totalPelanggaran  Int       @default(0)
+  logPelanggaran    String    @default("[]")
+  terakhirDisimpan  DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  kelompok   KelompokSoal? @relation(fields: [kelompokId], references: [id], onDelete: SetNull)
+  penilaian  PenilaianEsai?
+
+  @@map("peserta_ujian")
+}
+
+model PenilaianEsai {
+  id           String    @id @default(cuid())
+  pesertaId    String    @unique
+  skorEsai     String    @default("{}")
+  totalEsai    Int       @default(0)
+  dinilaiOleh  String?
+  waktuDinilai DateTime?
+
+  peserta PesertaUjian @relation(fields: [pesertaId], references: [id], onDelete: Cascade)
+
+  @@map("penilaian_esai")
+}
+
+model Pengaturan {
+  key   String @id
+  value String
+
+  @@map("pengaturan")
+}
