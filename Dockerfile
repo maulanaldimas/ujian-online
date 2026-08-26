@@ -28,16 +28,18 @@ ENV PORT=3000
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Install production deps (no native SQLite needed, all pure JS)
-COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev --ignore-scripts
-
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
+# Install production deps as root, then download prisma engine
+COPY package.json package-lock.json* ./
+RUN npm ci --omit=dev --ignore-scripts
+RUN npx prisma generate
+
+# Switch ownership and user
+RUN chown -R nextjs:nodejs /app
 USER nextjs
 
 EXPOSE 3000
