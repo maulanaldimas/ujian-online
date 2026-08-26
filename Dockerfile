@@ -10,11 +10,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# For PostgreSQL production, swap Prisma provider
+# For PostgreSQL production, swap Prisma provider and simplify prisma.ts
 RUN sed -i 's/provider = "sqlite"/provider = "postgresql"/' prisma/schema.prisma
-# Remove SQLite adapter references from prisma.ts
-RUN sed -i '/require.*adapter-better-sqlite3/d' src/lib/prisma.ts
-RUN sed -i '/PrismaBetterSqlite3/d' src/lib/prisma.ts
+RUN printf 'import { PrismaClient } from "@prisma/client";\nconst globalForPrisma = globalThis as unknown as { prisma: PrismaClient };\nexport const prisma = globalForPrisma.prisma || new PrismaClient();\nif (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;\n' > src/lib/prisma.ts
 
 RUN npx prisma generate
 RUN npm run build
