@@ -3,7 +3,9 @@ import { hashSync } from 'bcryptjs';
 
 function createPrismaClient() {
   if (process.env.DATABASE_URL?.startsWith('postgres')) {
-    return new PrismaClient();
+    const { PrismaPg } = require('@prisma/adapter-pg') as typeof import('@prisma/adapter-pg');
+    const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+    return new PrismaClient({ adapter });
   }
   const path = require('node:path') as typeof import('node:path');
   const { PrismaBetterSqlite3 } = require('@prisma/adapter-better-sqlite3') as typeof import('@prisma/adapter-better-sqlite3');
