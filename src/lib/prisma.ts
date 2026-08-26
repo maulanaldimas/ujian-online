@@ -1,4 +1,3 @@
-import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
 import { PrismaClient } from '@prisma/client';
 import path from 'node:path';
 
@@ -17,6 +16,8 @@ function createPrismaClient() {
   if (url.startsWith('postgres')) {
     return new PrismaClient();
   }
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { PrismaBetterSqlite3 } = require('@prisma/adapter-better-sqlite3');
   const adapter = new PrismaBetterSqlite3({ url });
   return new PrismaClient({ adapter });
 }

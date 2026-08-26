@@ -12,6 +12,9 @@ COPY . .
 
 # For PostgreSQL production, swap Prisma provider
 RUN sed -i 's/provider = "sqlite"/provider = "postgresql"/' prisma/schema.prisma
+# Remove SQLite adapter references from prisma.ts
+RUN sed -i '/require.*adapter-better-sqlite3/d' src/lib/prisma.ts
+RUN sed -i '/PrismaBetterSqlite3/d' src/lib/prisma.ts
 
 RUN npx prisma generate
 RUN npm run build
