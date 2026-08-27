@@ -33,6 +33,7 @@
     "better-sqlite3": "^13.0.3",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
+    "railway": "^3.11.0",
     "tailwindcss": "^4",
     "typescript": "5.7.3",
     "vitest": "^4.1.10"
