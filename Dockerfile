@@ -45,4 +45,4 @@ USER nextjs
 EXPOSE 3000
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["sh", "-c", "npx prisma db push --url \"$DATABASE_URL\" && node server.js"]
+CMD ["sh", "-c", "npx prisma db push --url \"$DATABASE_URL\" && if [ \"$DEMO_SEED\" = \"1\" ]; then npx tsx prisma/seed.ts && npx tsx prisma/seed-demo.ts; fi && node server.js"]
