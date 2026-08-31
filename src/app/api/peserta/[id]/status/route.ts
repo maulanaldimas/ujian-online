@@ -12,6 +12,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
     return NextResponse.json({
       status: peserta.status,
+      waktuMulai: peserta.waktuMulai,
       kelompokId: peserta.kelompokId,
       level: peserta.level,
       divisi: peserta.divisi,

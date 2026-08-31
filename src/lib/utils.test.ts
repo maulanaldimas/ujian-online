@@ -7,6 +7,10 @@ import {
   hitungGrade,
   hitungPersenSkor,
   parseBarisSoal,
+  normalisasiBaris,
+  tipeSoalDariTeks,
+  gambarValida,
+  hitungGrace,
 } from './utils';
 import { sanitizeHtml } from './constants';
 
@@ -153,6 +157,87 @@ describe('parseBarisSoal', () => {
       1
     );
     expect(hasil.valid).toBe(false);
+  });
+
+  it('mendukung variasi header Bahasa Indonesia', () => {
+    const baris = {
+      Soal: 'Berapa?',
+      Jenis: 'Pilihan Ganda',
+      Pilihan: 'Merah;Biru;Hijau',
+      'Kunci Jawaban': 'Biru',
+      'Gambar Soal': 'https://ex.com/g.png',
+    };
+    const hasil = parseBarisSoal(baris, 1);
+    expect(hasil.valid).toBe(true);
+    expect(hasil.tipe).toBe('pilihan_ganda');
+    expect(hasil.kunci).toBe('Biru');
+    expect(hasil.gambar).toBe('https://ex.com/g.png');
+  });
+
+  it('mendukung variasi header Inggris', () => {
+    const hasil = normalisasiBaris({ Question: 'X?', Type: 'Esay', Options: 'A;B;C', Answer: 'C' });
+    expect(hasil).toMatchObject({ Pertanyaan: 'X?', Tipe: 'Esay', Opsi: 'A;B;C', Kunci: 'C' });
+  });
+
+  it('mengenali tipe PG dari berbagai variasi kata', () => {
+    expect(tipeSoalDariTeks('pilihan ganda')).toBe('pilihan_ganda');
+    expect(tipeSoalDariTeks('PG')).toBe('pilihan_ganda');
+    expect(tipeSoalDariTeks('multiple choice')).toBe('pilihan_ganda');
+    expect(tipeSoalDariTeks('esai')).toBe('esai');
+    expect(tipeSoalDariTeks('uraian')).toBe('esai');
+    expect(tipeSoalDariTeks('')).toBe('esai');
+  });
+
+  it('membawa gambar data URL / base64 pada soal valid', () => {
+    const dataUrl = 'data:image/png;base64,iVBORw0KGgo=';
+    const hasil = parseBarisSoal({ Pertanyaan: 'X?', Tipe: 'esai', Gambar: dataUrl }, 1);
+    expect(hasil.valid).toBe(true);
+    expect(hasil.gambar).toBe(dataUrl);
+  });
+
+  it('menolak gambar tidak valid dan memberi alasan', () => {
+    const hasil = parseBarisSoal({ Pertanyaan: 'X?', Tipe: 'esai', Gambar: 'not a url' }, 1);
+    expect(hasil.valid).toBe(false);
+    expect(hasil.error).toContain('Gambar');
+  });
+
+  it('memberi alasan error untuk pilihan ganda tanpa 2 opsi', () => {
+    const hasil = parseBarisSoal({ Pertanyaan: 'X?', Tipe: 'pilihan_ganda', Opsi: 'A', Kunci: 'A' }, 1);
+    expect(hasil.valid).toBe(false);
+    expect(hasil.error).toContain('opsi');
+  });
+
+  it('memberi alasan error bila kunci tidak ada di opsi', () => {
+    const hasil = parseBarisSoal({ Pertanyaan: 'X?', Tipe: 'pilihan_ganda', Opsi: 'A;B', Kunci: 'Z' }, 1);
+    expect(hasil.valid).toBe(false);
+    expect(hasil.error).toContain('Kunci');
+  });
+
+  it('gambarValida menolak teks acak dan menerima URL', () => {
+    expect(gambarValida('https://x.com/a.png')).toBe(true);
+    expect(gambarValida('data:image/jpeg;base64,abc')).toBe(true);
+    expect(gambarValida('abc')).toBe(false);
+  });
+});
+
+describe('hitungGrace', () => {
+  it('memberi kompensasi offline penuh bila masih dalam kuota grace', () => {
+    expect(hitungGrace(90, 120)).toBe(90);
+  });
+
+  it('memotong ke sisa grace bila offline lebih lama dari kuota', () => {
+    expect(hitungGrace(300, 120)).toBe(120);
+  });
+
+  it('melaporkan nol bila offline terlalu singkat atau grace habis', () => {
+    expect(hitungGrace(0, 120)).toBe(0);
+    expect(hitungGrace(30, 0)).toBe(0);
+  });
+
+  it('menangani nilai negatif / tidak valid', () => {
+    expect(hitungGrace(-10, 120)).toBe(0);
+    expect(hitungGrace(10 as any, 'x' as any)).toBe(0);
+    expect(hitungGrace(NaN, 120)).toBe(0);
   });
 });
 

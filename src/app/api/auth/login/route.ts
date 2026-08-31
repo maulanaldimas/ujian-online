@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { signToken } from '@/lib/auth';
 import { compareSync } from 'bcryptjs';
+import { logAktivitas } from '@/lib/activity-log';
 
 export async function POST(req: Request) {
   try {
@@ -23,6 +24,7 @@ export async function POST(req: Request) {
       path: '/',
       maxAge: 86400,
     });
+    logAktivitas({ aksi: 'login', entitas: 'user', entitasId: user.id, adminEmail: user.email, detail: `Login berhasil: ${user.email}` });
     return res;
   } catch (err) {
     console.error('Login error:', err);

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { logAktivitas } from '@/lib/activity-log';
 
 export async function GET() {
   try {
@@ -28,6 +29,7 @@ export async function POST(req: Request) {
         departemen: body.departemen,
       },
     });
+    logAktivitas({ aksi: 'tambah_kelompok', entitas: 'kelompok_soal', entitasId: kelompok.id, detail: `Kelompok "${kelompok.nama}" (${kelompok.level ?? '-'}/${kelompok.divisi ?? '-'}/${kelompok.departemen ?? '-'})` });
     return NextResponse.json(kelompok, { status: 201 });
   } catch (err) {
     console.error('POST /api/kelompok error:', err);

@@ -1,10 +1,12 @@
 ﻿'use client';
 import { useState, useEffect, useCallback, type FormEvent, type ChangeEvent } from 'react';
 import Link from 'next/link';
-import { Lock, ArrowLeft, X, Save, Plus, Pencil, Trash2, Download, Rocket, ChevronUp, ChevronDown, Check } from 'lucide-react';
+import { Lock, ArrowLeft, X, Save, Plus, Pencil, Trash2, Download, Rocket, ChevronUp, ChevronDown, Check, Copy } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import LoginGate from '@/app/components/LoginGate';
-import { PageBackground, Card, Label, Input, Textarea, Select, Button, Badge, TopNav, Spinner, EmptyState, ConfirmModal } from '@/app/components/ui';
+import { Card, Label, Input, Textarea, Select, Button, Badge, Spinner, EmptyState, ConfirmModal } from '@/app/components/ui';
+import CopySoalModal from '@/app/components/CopySoalModal';
+import InputGambar from '@/app/components/InputGambar';
 import { parseBarisSoal, type KelompokSoal, type SoalData } from '@/lib/utils';
 
 export default function KelolaKelompok() {
@@ -17,14 +19,14 @@ export default function KelolaKelompok() {
 
 function AksesTerbatas() {
   return (
-    <PageBackground className="flex items-center justify-center p-5">
+    <div className="flex items-center justify-center p-5">
       <Card className="w-full max-w-sm p-8 text-center">
         <div className="flex justify-center mb-3 text-slate-300"><Lock size={48} /></div>
         <h1 className="font-display text-lg font-bold text-navy-900 mb-2">Khusus Admin</h1>
         <p className="text-sm text-slate-500 mb-5">Halaman ini hanya bisa diakses oleh akun dengan peran Admin.</p>
         <Link href="/dashboard" className="text-sm font-semibold text-teal-600 hover:underline"><ArrowLeft size={14} className="inline mr-1" />Kembali ke Dashboard</Link>
       </Card>
-    </PageBackground>
+    </div>
   );
 }
 
@@ -47,6 +49,8 @@ function KelolaKelompokIsi() {
   const [opsiDepartemen, setOpsiDepartemen] = useState('');
 
   const [pesan, setPesan] = useState<{ tone: string; teks: string } | null>(null);
+  const [showCopy, setShowCopy] = useState(false);
+  const [copyTarget, setCopyTarget] = useState<{ id: string; nama: string } | null>(null);
 
   const ambilData = useCallback(async () => {
     const [opsiRes, kelompokRes] = await Promise.all([
@@ -160,69 +164,50 @@ function KelolaKelompokIsi() {
 
   if (loading) {
     return (
-      <PageBackground className="p-5">
-        <div className="max-w-6xl mx-auto">
-          <TopNav
-            title="Kelompok Soal"
-            links={[
-              { href: '/dashboard', label: 'Dashboard' },
-              { href: '/dashboard/pengaturan', label: 'Pengaturan' },
-            ]}
-          />
-          <div className="grid lg:grid-cols-2 gap-5 mb-6">
-            {Array.from({ length: 2 }).map((_, i) => (
-              <Card key={i} className="p-5">
-                <div className="h-5 w-48 skeleton mb-2" />
-                <div className="h-4 w-full max-w-xs skeleton mb-4" />
-                <div className="h-10 w-full skeleton rounded-xl mb-3" />
-                <div className="flex flex-wrap gap-1.5 mb-5">
-                  {Array.from({ length: 4 }).map((_, j) => (
-                    <div key={j} className="h-6 skeleton rounded-full" style={{ width: `${60 + j * 20}px` }} />
-                  ))}
+      <div>
+        <div className="grid lg:grid-cols-2 gap-5 mb-6">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <Card key={i} className="p-5">
+              <div className="h-5 w-48 skeleton mb-2" />
+              <div className="h-4 w-full max-w-xs skeleton mb-4" />
+              <div className="h-10 w-full skeleton rounded-xl mb-3" />
+              <div className="flex flex-wrap gap-1.5 mb-5">
+                {Array.from({ length: 4 }).map((_, j) => (
+                  <div key={j} className="h-6 skeleton rounded-full" style={{ width: `${60 + j * 20}px` }} />
+                ))}
+              </div>
+              <div className="h-10 w-full skeleton rounded-xl" />
+            </Card>
+          ))}
+        </div>
+        <Card className="p-5">
+          <div className="h-5 w-56 skeleton mb-4" />
+          <div className="space-y-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="border border-slate-200 rounded-xl p-4 flex items-center justify-between gap-3">
+                <div>
+                  <div className="h-4 w-40 skeleton mb-2" />
+                  <div className="flex gap-1.5">
+                    <div className="h-5 w-16 skeleton rounded-full" />
+                    <div className="h-5 w-16 skeleton rounded-full" />
+                    <div className="h-5 w-20 skeleton rounded-full" />
+                  </div>
                 </div>
-                <div className="h-10 w-full skeleton rounded-xl" />
-              </Card>
+                <div className="flex gap-2">
+                  <div className="h-8 w-24 skeleton rounded-xl" />
+                  <div className="h-8 w-28 skeleton rounded-xl" />
+                  <div className="h-8 w-20 skeleton rounded-xl" />
+                </div>
+              </div>
             ))}
           </div>
-          <Card className="p-5">
-            <div className="h-5 w-56 skeleton mb-4" />
-            <div className="space-y-3">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="border border-slate-200 rounded-xl p-4 flex items-center justify-between gap-3">
-                  <div>
-                    <div className="h-4 w-40 skeleton mb-2" />
-                    <div className="flex gap-1.5">
-                      <div className="h-5 w-16 skeleton rounded-full" />
-                      <div className="h-5 w-16 skeleton rounded-full" />
-                      <div className="h-5 w-20 skeleton rounded-full" />
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <div className="h-8 w-24 skeleton rounded-xl" />
-                    <div className="h-8 w-28 skeleton rounded-xl" />
-                    <div className="h-8 w-20 skeleton rounded-xl" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </div>
-      </PageBackground>
+        </Card>
+      </div>
     );
   }
 
   return (
-    <PageBackground className="p-5">
-      <div className="max-w-6xl mx-auto">
-        <TopNav
-          title="Kelompok Soal"
-          subtitle="Kelola level, divisi, departemen, dan soal di dalam setiap kelompok"
-          links={[
-            { href: '/dashboard', label: 'Dashboard' },
-            { href: '/dashboard/pengaturan', label: 'Pengaturan' },
-          ]}
-          onLogout={() => fetch('/api/auth/logout', { method: 'POST' }).then(() => window.location.reload())}
-        />
+    <div>
 
         {pesan && (
           <div className={`mb-4 p-3 rounded-xl text-sm ${pesan.tone === 'green' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
@@ -372,13 +357,26 @@ function KelolaKelompokIsi() {
                     setKelompokList(data.kelompokList);
                   }}
                   onPesan={(tone, teks) => setPesan({ tone, teks })}
+                  onSalin={(id, nama) => { setCopyTarget({ id, nama }); setShowCopy(true); }}
                 />
               ))}
             </div>
           )}
         </Card>
-      </div>
-    </PageBackground>
+      <CopySoalModal
+        open={showCopy}
+        targetKelompokId={copyTarget?.id ?? ''}
+        targetNama={copyTarget?.nama ?? ''}
+        kelompokList={kelompokList}
+        onClose={() => { setShowCopy(false); setCopyTarget(null); }}
+        onDone={async () => {
+          setShowCopy(false);
+          setCopyTarget(null);
+          const data = await ambilData();
+          setKelompokList(data.kelompokList);
+        }}
+      />
+    </div>
   );
 }
 
@@ -389,6 +387,7 @@ function KelompokCard({
   daftarDepartemen,
   onChanged,
   onPesan,
+  onSalin,
 }: {
   kelompok: KelompokSoal;
   daftarLevel: string[];
@@ -396,6 +395,7 @@ function KelompokCard({
   daftarDepartemen: string[];
   onChanged: () => Promise<void>;
   onPesan: (tone: string, teks: string) => void;
+  onSalin: (kelompokId: string, nama: string) => void;
 }) {
   const [daftarSoal, setDaftarSoal] = useState<SoalData[]>([]);
   const [kunciMap, setKunciMap] = useState<Record<string, string>>({});
@@ -407,12 +407,14 @@ function KelompokCard({
   const [tipeBaru, setTipeBaru] = useState('esai');
   const [pilihanBaru, setPilihanBaru] = useState(['', '', '', '']);
   const [kunciBaru, setKunciBaru] = useState('');
+  const [gambarBaru, setGambarBaru] = useState('');
 
   const [editId, setEditId] = useState<string | null>(null);
   const [editTeks, setEditTeks] = useState('');
   const [editTipe, setEditTipe] = useState('esai');
   const [editPilihan, setEditPilihan] = useState(['', '', '', '']);
   const [editKunci, setEditKunci] = useState('');
+  const [editGambar, setEditGambar] = useState('');
 
   const [editMenunjukkan, setEditMenunjukkan] = useState(false);
   const [editNama, setEditNama] = useState('');
@@ -422,7 +424,7 @@ function KelompokCard({
 
   const [fileExcel, setFileExcel] = useState<File | null>(null);
   const [sedangImport, setSedangImport] = useState(false);
-  const [pesanImport, setPesanImport] = useState<{ tone: string; teks: string } | null>(null);
+  const [pesanImport, setPesanImport] = useState<{ tone: string; teks: string; detail?: { baris: number; alasan: string }[] } | null>(null);
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
@@ -444,6 +446,7 @@ function KelompokCard({
       teks: s.teks,
       tipe: s.tipe,
       pilihan: s.pilihan,
+      gambar: s.gambar || '',
       urutan: s.urutan,
     }));
 
@@ -497,10 +500,11 @@ function KelompokCard({
           tipe: tipeBaru,
           pilihan: tipeBaru === 'pilihan_ganda' ? pilihanBersih : [],
           kunci: tipeBaru === 'pilihan_ganda' ? kunciBaru : undefined,
+          gambar: gambarBaru,
         }),
       });
 
-      setTeksBaru(''); setTipeBaru('esai'); setPilihanBaru(['', '', '', '']); setKunciBaru('');
+      setTeksBaru(''); setTipeBaru('esai'); setPilihanBaru(['', '', '', '']); setKunciBaru(''); setGambarBaru('');
       setShowTambah(false);
       await muatSoal();
     } catch (err) {
@@ -516,6 +520,7 @@ function KelompokCard({
     setEditTipe(soal.tipe || 'esai');
     setEditPilihan(soal.pilihan && soal.pilihan.length >= 2 ? soal.pilihan : ['', '', '', '']);
     setEditKunci(kunciMap[soal.id ?? ''] || '');
+    setEditGambar(soal.gambar || '');
   }
 
   async function simpanEdit(soalId: string) {
@@ -536,6 +541,7 @@ function KelompokCard({
           tipe: editTipe,
           pilihan: editTipe === 'pilihan_ganda' ? pilihanBersih : [],
           kunci: editTipe === 'pilihan_ganda' ? editKunci : undefined,
+          gambar: editGambar,
         }),
       });
       setEditId(null);
@@ -647,18 +653,33 @@ function KelompokCard({
         'Tipe': 'pilihan_ganda',
         'Opsi': 'Central Processing Unit;Control Processing Unit;Computer Personal Unit',
         'Kunci': 'Central Processing Unit',
+        'Gambar': 'https://contoh.com/diagram.png',
       },
       {
         'Pertanyaan': 'Jelaskan pengalaman kerja Anda di bidang ini.',
         'Tipe': 'esai',
         'Opsi': '',
         'Kunci': '',
+        'Gambar': '',
       },
     ];
     const worksheet = XLSX.utils.json_to_sheet(template);
-    worksheet['!cols'] = [{ wch: 50 }, { wch: 15 }, { wch: 50 }, { wch: 30 }];
+    worksheet['!cols'] = [{ wch: 45 }, { wch: 15 }, { wch: 45 }, { wch: 25 }, { wch: 40 }];
+    const catatan = XLSX.utils.aoa_to_sheet([
+      ['Panduan Import Soal'],
+      [''],
+      ['Header yang dikenali (alias juga didukung):'],
+      ['Pertanyaan | Soal | Question', 'Tipe | Jenis | Type', 'Opsi | Pilihan | Jawaban | Options', 'Kunci | Kunci Jawaban | Jawaban Benar | Answer', 'Gambar | Image | Gambar Soal | URLGambar'],
+      [''],
+      ['- Tipe: "pilihan_ganda", "PG", "Pilihan Ganda", "multiple choice" → PG. Selain itu dianggap esai.'],
+      ['- Opsi dipisah dengan tanda titik koma (;), baris baru, atau pipe (|).'],
+      ['- Kolom Gambar opsional: isi URL (http/https), data URL, atau base64 file gambar.'],
+      ['- Baris yang tidak valid otomatis dilewati dan dilaporkan beserta alasan saat import.'],
+    ]);
+    catatan['!cols'] = [{ wch: 60 }, { wch: 60 }, { wch: 60 }, { wch: 60 }, { wch: 60 }];
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Template Soal');
+    XLSX.utils.book_append_sheet(workbook, catatan, 'Panduan');
     XLSX.writeFile(workbook, 'template-soal.xlsx');
   }
 
@@ -685,12 +706,12 @@ function KelompokCard({
 
       const urutanTertinggi = daftarSoal.reduce((max, s) => Math.max(max, s.urutan || 0), 0);
       let sukses = 0;
-      let gagal = 0;
+      const gagalList: { baris: number; alasan: string }[] = [];
 
       for (let i = 0; i < baris.length; i++) {
-        const hasil = parseBarisSoal(baris[i], urutanTertinggi + i + 1);
+        const hasil = parseBarisSoal(baris[i], urutanTertinggi + sukses + 1);
         if (!hasil.valid) {
-          gagal += 1;
+          gagalList.push({ baris: i + 2, alasan: hasil.error || 'Format tidak valid' });
           continue;
         }
 
@@ -704,23 +725,29 @@ function KelompokCard({
               tipe: hasil.tipe,
               pilihan: hasil.tipe === 'pilihan_ganda' ? hasil.pilihan : [],
               kunci: hasil.tipe === 'pilihan_ganda' ? hasil.kunci : undefined,
+              gambar: hasil.gambar,
             }),
           });
           sukses += 1;
         } catch {
-          gagal += 1;
+          gagalList.push({ baris: i + 2, alasan: 'Gagal disimpan ke server' });
         }
       }
 
       if (sukses === 0) {
-        setPesanImport({ tone: 'red', teks: 'Tidak ada soal valid yang bisa diimpor. Periksa format template.' });
+        setPesanImport({
+          tone: 'red',
+          teks: 'Tidak ada soal valid yang bisa diimpor. Periksa format template.',
+          detail: gagalList,
+        });
         return;
       }
 
       bersihkanImport();
       setPesanImport({
         tone: 'green',
-        teks: `Berhasil menambah ${sukses} soal${gagal > 0 ? ` (${gagal} baris dilewati karena tidak valid)` : ''}.`,
+        teks: `Berhasil menambah ${sukses} soal${gagalList.length > 0 ? `, ${gagalList.length} baris dilewati` : ''}.`,
+        detail: gagalList.length > 0 ? gagalList : undefined,
       });
       await muatSoal();
     } catch (err) {
@@ -758,6 +785,9 @@ function KelompokCard({
           </p>
         </div>
         <div className="flex gap-2">
+          <Button variant="secondary" className="!px-3 !py-1.5 text-xs" onClick={() => onSalin(kelompok.id ?? '', kelompok.nama ?? '')}>
+            <Copy size={14} className="inline mr-1" />Salin Soal
+          </Button>
           <Button variant="secondary" className="!px-3 !py-1.5 text-xs" onClick={() => setShowTambah((v) => !v)}>
             {showTambah ? (<><X size={14} className="inline mr-1" />Tutup</>) : (<><Plus size={14} className="inline mr-1" />Tambah Soal</>)}
           </Button>
@@ -806,6 +836,8 @@ function KelompokCard({
             <option value="esai">Esai (jawaban bebas)</option>
             <option value="pilihan_ganda">Pilihan Ganda</option>
           </Select>
+
+          <InputGambar value={gambarBaru} onChange={setGambarBaru} />
 
           {tipeBaru === 'pilihan_ganda' && (
             <>
@@ -857,9 +889,19 @@ function KelompokCard({
       </div>
 
       {pesanImport && (
-        <p className={`text-sm px-3 py-2 rounded-lg mb-3 ${pesanImport.tone === 'green' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-          {pesanImport.teks}
-        </p>
+        <div className={`text-sm px-3 py-2 rounded-lg mb-3 ${pesanImport.tone === 'green' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+          <p>{pesanImport.teks}</p>
+          {pesanImport.detail && (
+            <div className="mt-1.5">
+              <p className="text-xs font-semibold mb-1">Baris yang dilewati:</p>
+              <ul className="text-xs space-y-0.5 max-h-32 overflow-y-auto pr-1">
+                {pesanImport.detail.map((d, i) => (
+                  <li key={i}>Baris {d.baris}: {d.alasan}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
       )}
 
       {loadingSoal ? (
@@ -881,6 +923,7 @@ function KelompokCard({
                     <option value="esai">Esai (jawaban bebas)</option>
                     <option value="pilihan_ganda">Pilihan Ganda</option>
                   </Select>
+                  <InputGambar value={editGambar} onChange={setEditGambar} />
                   {editTipe === 'pilihan_ganda' && (
                     <>
                       <Label>Opsi Jawaban</Label>
@@ -913,6 +956,12 @@ function KelompokCard({
                     <Badge tone="slate" className="mt-0.5">#{index + 1}</Badge>
                     <p className="text-sm text-navy-900 flex-1 break-words">{soal.teks}</p>
                   </div>
+                  {soal.gambar && (
+                    <div className="mt-2">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={soal.gambar} alt={`Ilustrasi soal ${index + 1}`} className="max-h-40 rounded-lg border border-slate-200 object-contain" />
+                    </div>
+                  )}
                   {soal.tipe === 'pilihan_ganda' && (
                     <>
                       <ul className="text-sm text-slate-600 list-disc list-inside mt-1 mb-1 pl-5">

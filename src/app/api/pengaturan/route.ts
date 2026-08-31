@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { logAktivitas } from '@/lib/activity-log';
 
 export async function GET() {
   try {
@@ -21,6 +22,7 @@ export async function PUT(req: Request) {
       update: { value },
       create: { key: 'proctoring', value },
     });
+    logAktivitas({ aksi: 'update_pengaturan', entitas: 'pengaturan', detail: `Proctoring: ${JSON.stringify(body)}` });
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error('PUT /api/pengaturan error:', err);

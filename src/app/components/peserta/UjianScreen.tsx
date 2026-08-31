@@ -2,9 +2,9 @@
 
 import type { RefObject } from 'react';
 import Image from 'next/image';
-import { AlertTriangle, ArrowLeft, ArrowRight, Send, X, Clock, Loader2 } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, ArrowRight, Send, X, Clock, Loader2, Megaphone, WifiOff } from 'lucide-react';
 import { PageBackground, Card, Button, Badge, Spinner, Textarea } from '@/app/components/ui';
-import { LOGO_SRC } from '@/lib/constants';
+import { LOGO_SRC, DURASI_UJIAN_DETIK } from '@/lib/constants';
 import { formatWaktuDetik, type SoalData } from '@/lib/utils';
 
 type Props = {
@@ -12,6 +12,7 @@ type Props = {
   soalIndex: number;
   jawabanMap: Record<string, string>;
   waktuTersisa: number;
+  koneksiSse: 'terhubung' | 'putus' | null;
   keluarFullscreen: boolean;
   namaPeserta: string;
   errorKamera: string;
@@ -21,6 +22,8 @@ type Props = {
   pengaturanProctoring: { kameraAktif: boolean; audioAktif: boolean };
   sedangMenyimpan: boolean;
   showReview: boolean;
+  pesanAdmin: string;
+  onTutupPesanAdmin: () => void;
   videoRef: RefObject<HTMLVideoElement | null>;
   canvasRef: RefObject<HTMLCanvasElement | null>;
   onJawabanChange: (soalId: string, teks: string) => void;
@@ -40,6 +43,7 @@ export default function UjianScreen({
   soalIndex,
   jawabanMap,
   waktuTersisa,
+  koneksiSse,
   keluarFullscreen,
   namaPeserta,
   errorKamera,
@@ -49,6 +53,8 @@ export default function UjianScreen({
   pengaturanProctoring,
   sedangMenyimpan,
   showReview,
+  pesanAdmin,
+  onTutupPesanAdmin,
   videoRef,
   canvasRef,
   onJawabanChange,
@@ -76,11 +82,20 @@ export default function UjianScreen({
   const soalSekarang = daftarSoal[soalIndex];
   const isSoalTerakhir = soalIndex === daftarSoal.length - 1;
   const jumlahDijawab = daftarSoal.filter((s) => jawabanMap[s.id ?? ''] && jawabanMap[s.id ?? ''] !== '').length;
+  const persenWaktu = Math.max(0, Math.min(100, (waktuTersisa / DURASI_UJIAN_DETIK) * 100));
+  const waktuKritis = waktuTersisa < 300;
+  const waktuDarurat = waktuTersisa < 60;
 
   const NavigasiSoal = (
     <Card className="p-4">
-      <p className="font-display text-sm font-bold text-navy-900 mb-1">Navigasi Soal</p>
-      <p className="text-xs text-slate-500 mb-3">{jumlahDijawab} dari {daftarSoal.length} terjawab</p>
+      <div className="flex items-center justify-between mb-1">
+        <p className="font-display text-sm font-bold text-navy-900">Navigasi Soal</p>
+        <span className="text-xs font-bold text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full">{jumlahDijawab}/{daftarSoal.length}</span>
+      </div>
+      <p className="text-xs text-slate-500 mb-3">terjawab</p>
+      <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden mb-3">
+        <div className="h-full bg-teal-500 rounded-full transition-all" style={{ width: `${(jumlahDijawab / daftarSoal.length) * 100}%` }} />
+      </div>
       <div className="grid grid-cols-5 gap-2">
         {daftarSoal.map((s, i) => {
           const sudahDijawab = jawabanMap[s.id ?? ''] && jawabanMap[s.id ?? ''] !== '';
@@ -89,10 +104,10 @@ export default function UjianScreen({
             <button
               key={s.id}
               onClick={() => onLompatKeSoal(i)}
-              className={`w-9 h-9 rounded-full text-sm font-bold border-2 cursor-pointer transition
-                ${aktif ? 'bg-navy-900 text-white border-navy-900' : ''}
-                ${!aktif && sudahDijawab ? 'bg-green-50 text-green-700 border-green-300' : ''}
-                ${!aktif && !sudahDijawab ? 'bg-white text-slate-400 border-slate-200' : ''}
+              className={`w-9 h-9 rounded-full text-sm font-bold border-2 cursor-pointer transition-all duration-150
+                ${aktif ? 'bg-navy-900 text-white border-navy-900 shadow-md scale-110' : ''}
+                ${!aktif && sudahDijawab ? 'bg-green-50 text-green-700 border-green-300 hover:bg-green-100' : ''}
+                ${!aktif && !sudahDijawab ? 'bg-white text-slate-400 border-slate-200 hover:border-slate-300 hover:text-slate-600' : ''}
               `}
             >
               {i + 1}
@@ -130,16 +145,66 @@ export default function UjianScreen({
       </div>
 
       <div className="max-w-2xl mx-auto lg:mx-[260px] xl:mx-auto xl:max-w-2xl p-5">
-        <div className="flex justify-between items-center mb-5">
+        {pesanAdmin && (
+          <Card className="!border-teal-300 bg-teal-50 p-4 mb-4 animate-fade-in">
+            <div className="flex items-start gap-3">
+              <Megaphone size={18} className="text-teal-700 shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-teal-800 uppercase tracking-wide mb-1">Pesan Pengawas</p>
+                <p className="text-sm text-teal-900 break-words leading-relaxed">{pesanAdmin}</p>
+              </div>
+              <button onClick={onTutupPesanAdmin} className="text-teal-700 hover:text-teal-900 cursor-pointer shrink-0" aria-label="Tutup pesan">
+                <X size={16} />
+              </button>
+            </div>
+          </Card>
+        )}
+
+        {koneksiSse === 'putus' && (
+          <Card className="p-3 mb-4 bg-amber-50 border-amber-200">
+            <div className="flex items-start gap-3">
+              <WifiOff size={18} className="text-amber-600 shrink-0 mt-0.5" />
+              <p className="text-sm text-amber-800 leading-relaxed">
+                Koneksi terputus. Jawaban tetap tersimpan di perangkat. Waktu yang hilang akan dipulihkan otomatis saat koneksi kembali.
+              </p>
+            </div>
+          </Card>
+        )}
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
           <h1 className="font-display text-xl font-bold text-navy-900">Ujian Rekrutmen</h1>
-          <span className={`flex items-center gap-1.5 font-display font-bold px-3 py-1.5 rounded-full text-sm ${waktuTersisa < 60 ? 'bg-red-50 text-red-600 animate-pulse-urgent' : 'bg-slate-100 text-navy-900'}`}>
-            <Clock size={16} className="inline mr-1" />{formatWaktuDetik(waktuTersisa)}
-          </span>
-          {sedangMenyimpan && (
-            <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
-              <Loader2 size={12} className="inline animate-spin mr-1" />Menyimpan...
+          <div className="flex items-center gap-2">
+            {sedangMenyimpan && (
+              <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+                <Loader2 size={12} className="inline animate-spin mr-1" />Menyimpan...
+              </span>
+            )}
+            {koneksiSse === 'terhubung' && (
+              <span className="text-xs text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse" />Sinkron
+              </span>
+            )}
+            {koneksiSse === 'putus' && (
+              <span className="text-xs text-red-600 bg-red-50 px-2 py-0.5 rounded-full flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500" />Offline
+              </span>
+            )}
+            <span className={`flex items-center gap-1.5 font-display font-bold px-3 py-1.5 rounded-full text-sm ${
+              waktuDarurat ? 'bg-red-50 text-red-600 animate-pulse-urgent' :
+              waktuKritis ? 'bg-amber-50 text-amber-700' :
+              'bg-slate-100 text-navy-900'
+            }`}>
+              <Clock size={16} className="inline mr-1" />{formatWaktuDetik(waktuTersisa)}
             </span>
-          )}
+          </div>
+        </div>
+        <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden mb-5">
+          <div
+            className={`h-full rounded-full transition-all duration-1000 ${
+              waktuDarurat ? 'bg-red-500' : waktuKritis ? 'bg-amber-400' : 'bg-teal-500'
+            }`}
+            style={{ width: `${persenWaktu}%` }}
+          />
         </div>
 
         <div className="flex justify-center mb-4 lg:hidden">
@@ -152,7 +217,7 @@ export default function UjianScreen({
           {errorKamera && <p className="text-red-600 text-sm mb-3">{errorKamera}</p>}
 
           {(pengaturanProctoring.kameraAktif || pengaturanProctoring.audioAktif) && (
-            <div className="flex items-center gap-4 mb-4 pb-4 border-b border-slate-100">
+            <div className="flex items-start gap-4 mb-4 pb-4 border-b border-slate-100">
               {pengaturanProctoring.kameraAktif && (
                 <>
                   <video ref={videoRef} autoPlay muted playsInline className="w-[140px] rounded-lg bg-black" />
@@ -164,17 +229,27 @@ export default function UjianScreen({
                   <Badge tone={statusWajah.ok ? 'green' : 'red'}>{statusWajah.pesan}</Badge>
                 )}
                 {pengaturanProctoring.audioAktif && (
-                  <div><Badge tone={statusAudio.ok ? 'green' : 'red'}>{statusAudio.pesan}</Badge></div>
+                  <Badge tone={statusAudio.ok ? 'green' : 'red'}>{statusAudio.pesan}</Badge>
                 )}
                 {pelanggaran > 0 && (
-                  <div><Badge tone="orange"><AlertTriangle size={14} className="inline mr-1" />{pelanggaran} pelanggaran terdeteksi</Badge></div>
+                  <Badge tone="orange"><AlertTriangle size={14} className="inline mr-1" />{pelanggaran} pelanggaran terdeteksi</Badge>
                 )}
               </div>
             </div>
           )}
 
           <p className="text-slate-400 text-xs font-semibold uppercase tracking-wide mb-1">Soal {soalIndex + 1} dari {daftarSoal.length}</p>
-          <p className="text-navy-900 text-lg mb-4 break-words">{soalSekarang.teks}</p>
+          <div className="h-1 bg-slate-100 rounded-full overflow-hidden mb-3">
+            <div className="h-full bg-teal-500 rounded-full transition-all" style={{ width: `${((soalIndex + 1) / daftarSoal.length) * 100}%` }} />
+          </div>
+          <p className="text-navy-900 text-lg mb-4 break-words leading-relaxed">{soalSekarang.teks}</p>
+
+          {soalSekarang.gambar && (
+            <div className="mb-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={soalSekarang.gambar} alt={`Ilustrasi soal ${soalIndex + 1}`} className="max-h-72 rounded-xl border border-slate-200 object-contain mx-auto" />
+            </div>
+          )}
 
           {soalSekarang.tipe === 'pilihan_ganda' ? (
             <div className="mb-4 space-y-2">

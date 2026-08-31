@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { logAktivitas } from '@/lib/activity-log';
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -14,6 +15,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       teks: s.teks,
       tipe: s.tipe,
       pilihan: (() => { try { return JSON.parse(s.pilihan || '[]'); } catch { return []; } })(),
+      gambar: s.gambar,
       urutan: s.urutan,
       kunci: s.kunci?.jawabanBenar || '',
     }));
@@ -34,6 +36,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         teks: body.teks,
         tipe: body.tipe || 'esai',
         pilihan: body.pilihan ? JSON.stringify(body.pilihan) : '[]',
+        gambar: body.gambar ?? '',
         urutan: body.urutan || 0,
       },
     });
@@ -44,6 +47,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       });
     }
 
+    logAktivitas({ aksi: 'tambah_soal', entitas: 'soal', entitasId: soal.id, detail: `Soal ${body.tipe || 'esai'} ditambahkan ke kelompok ${id}` });
     return NextResponse.json(soal, { status: 201 });
   } catch (err) {
     console.error('POST /api/kelompok/[id]/soal error:', err);

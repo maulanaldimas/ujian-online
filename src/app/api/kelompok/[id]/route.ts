@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { logAktivitas } from '@/lib/activity-log';
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -29,6 +30,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         departemen: body.departemen,
       },
     });
+    logAktivitas({ aksi: 'edit_kelompok', entitas: 'kelompok_soal', entitasId: id, detail: `Kelompok "${updated.nama}" diperbarui` });
     return NextResponse.json(updated);
   } catch (err) {
     console.error('PUT /api/kelompok/[id] error:', err);
@@ -40,6 +42,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   try {
     const { id } = await params;
     await prisma.kelompokSoal.delete({ where: { id } });
+    logAktivitas({ aksi: 'hapus_kelompok', entitas: 'kelompok_soal', entitasId: id, detail: `Kelompok ${id} dihapus` });
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error('DELETE /api/kelompok/[id] error:', err);

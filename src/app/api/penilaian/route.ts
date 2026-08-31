@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { logAktivitas } from '@/lib/activity-log';
 
 export async function GET() {
   try {
@@ -36,6 +37,7 @@ export async function POST(req: Request) {
       create: { pesertaId: body.pesertaId, ...data },
     });
 
+    logAktivitas({ aksi: 'simpan_penilaian_esai', entitas: 'peserta', entitasId: body.pesertaId, detail: `Skor esai: ${body.totalEsai}/100` });
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error('POST /api/penilaian error:', err);

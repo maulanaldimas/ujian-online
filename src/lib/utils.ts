@@ -20,6 +20,7 @@ export interface SoalData {
   teks?: string;
   tipe?: string;
   pilihan?: string[];
+  gambar?: string;
   urutan?: number;
 }
 
@@ -102,18 +103,104 @@ export function hitungPersenSkor(
 }
 
 export function parseBarisSoal(row: Record<string, any>, urutan: number) {
-  const teks = String(row.Pertanyaan || '').trim();
-  const tipeMentah = String(row.Tipe || 'esai').toLowerCase();
-  const tipe = tipeMentah.includes('pilihan') ? 'pilihan_ganda' : 'esai';
-  const kunci = String(row.Kunci || '').trim();
-  const pilihan = String(row.Opsi || '')
+  const r = normalisasiBaris(row);
+  const teks = String(r.Pertanyaan ?? '').trim();
+  const tipe = tipeSoalDariTeks(String(r.Tipe ?? 'esai'));
+  const kunci = String(r.Kunci ?? '').trim();
+  const pilihan = String(r.Opsi ?? '')
     .split(/[;\n|]/)
     .map((p) => p.trim())
     .filter((p) => p !== '');
+  const gambar = String(r.Gambar ?? '').trim();
 
   let valid = true;
-  if (!teks) valid = false;
-  if (tipe === 'pilihan_ganda' && (pilihan.length < 2 || !pilihan.includes(kunci))) valid = false;
+  let error = '';
+  if (!teks) {
+    valid = false;
+    error = 'Pertanyaan kosong';
+  } else if (tipe === 'pilihan_ganda' && pilihan.length < 2) {
+    valid = false;
+    error = 'Pilihan ganda butuh minimal 2 opsi';
+  } else if (tipe === 'pilihan_ganda' && !pilihan.includes(kunci)) {
+    valid = false;
+    error = 'Kunci jawaban tidak ada di daftar opsi';
+  } else if (gambar && !gambarValida(gambar)) {
+    valid = false;
+    error = 'Kolom Gambar harus berupa URL (http/https), data URL, atau base64';
+  }
 
-  return { teks, tipe, pilihan, kunci, urutan, valid };
+  return { teks, tipe, pilihan, kunci, gambar, urutan, valid, error };
+}
+
+const ALIAS_HEADER: Record<string, keyof ReturnType<typeof barisKosong>> = {
+  pertanyaan: 'Pertanyaan',
+  soal: 'Pertanyaan',
+  question: 'Pertanyaan',
+  tipe: 'Tipe',
+  jenis: 'Tipe',
+  type: 'Tipe',
+  opsi: 'Opsi',
+  pilihan: 'Opsi',
+  options: 'Opsi',
+  jawaban: 'Opsi',
+  kunci: 'Kunci',
+  'kunci jawaban': 'Kunci',
+  'jawaban benar': 'Kunci',
+  answer: 'Kunci',
+  gambar: 'Gambar',
+  image: 'Gambar',
+  'gambar soal': 'Gambar',
+  urlgambar: 'Gambar',
+};
+
+function barisKosong() {
+  return { Pertanyaan: '', Tipe: '', Opsi: '', Kunci: '', Gambar: '' };
+}
+
+export function normalisasiBaris(row: Record<string, any>) {
+  const hasil = barisKosong();
+  for (const [kunci, nilai] of Object.entries(row)) {
+    const k = String(kunci).trim().toLowerCase().replace(/\s+/g, ' ');
+    const kanonik = ALIAS_HEADER[k];
+    if (kanonik && nilai !== undefined && nilai !== null) {
+      hasil[kanonik] = String(nilai);
+    }
+  }
+  return hasil;
+}
+
+export function tipeSoalDariTeks(teks: string): 'pilihan_ganda' | 'esai' {
+  const t = teks.toLowerCase().trim();
+  if (
+    t.includes('pilihan') ||
+    t.includes('pg') ||
+    t.includes('multiple') ||
+    t.includes('objektif') ||
+    t === 'ganda'
+  ) {
+    return 'pilihan_ganda';
+  }
+  return 'esai';
+}
+
+export function gambarValida(gambar: string): boolean {
+  const g = gambar.trim();
+  const gl = g.toLowerCase();
+  if (gl.startsWith('http://') || gl.startsWith('https://')) return true;
+  if (gl.startsWith('data:image/')) return true;
+  if (g.length > 100) {
+    try {
+      atob(g);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
+export function hitungGrace(offlineDetik: number, sisaGraceDetik: number): number {
+  if (!Number.isFinite(offlineDetik) || offlineDetik <= 0) return 0;
+  if (!Number.isFinite(sisaGraceDetik) || sisaGraceDetik <= 0) return 0;
+  return Math.min(Math.floor(offlineDetik), Math.floor(sisaGraceDetik));
 }

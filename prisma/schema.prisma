@@ -39,6 +39,7 @@ model Soal {
   teks        String
   tipe        String   @default("esai")
   pilihan     String?  @default("[]")
+  gambar      String?  @default("")
   urutan      Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -79,6 +80,8 @@ model PesertaUjian {
   jawaban           String    @default("{}")
   totalPelanggaran  Int       @default(0)
   logPelanggaran    String    @default("[]")
+  pesanAdmin        String    @default("")
+  graceDipakai      Int       @default(0)
   terakhirDisimpan  DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
@@ -107,4 +110,19 @@ model Pengaturan {
   value String
 
   @@map("pengaturan")
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  aksi      String
+  entitas   String?
+  entitasId String?
+  detail    String?
+  adminEmail String?
+  createdAt DateTime @default(now())
+
+  @@index([aksi])
+  @@index([entitas])
+  @@index([createdAt])
+  @@map("activity_log")
 }

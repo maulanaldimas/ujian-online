@@ -42,3 +42,47 @@ export const CHART_WARNA = {
   success: '#16a34a',
   danger: '#dc2626',
 } as const;
+
+export const AKTIVITAS_LABEL: Record<string, string> = {
+  login: 'Login',
+  logout: 'Logout',
+  update_pengaturan: 'Update Pengaturan',
+  tambah_kelompok: 'Tambah Kelompok Soal',
+  edit_kelompok: 'Edit Kelompok Soal',
+  hapus_kelompok: 'Hapus Kelompok Soal',
+  tambah_soal: 'Tambah Soal',
+  hapus_soal: 'Hapus Soal',
+  reorder_soal: 'Ubah Urutan Soal',
+  ubah_penetapan_kelompok: 'Ubah Penetapan Kelompok',
+  simpan_penilaian_esai: 'Simpan Penilaian Esai',
+  export_excel: 'Export Excel',
+  mulai_ujian: 'Mulai Ujian',
+  selesai_ujian: 'Selesai Ujian',
+  pelanggaran: 'Pelanggaran Terdeteksi',
+};
+
+export const AKTIVITAS_ENTITAS: Record<string, string> = {
+  peserta: 'Peserta',
+  kelompok_soal: 'Kelompok Soal',
+  soal: 'Soal',
+  pengaturan: 'Pengaturan',
+  user: 'User',
+};
+
+export const AKTIVITAS_ICON: Record<string, 'login' | 'settings' | 'plus' | 'edit' | 'trash' | 'eye' | 'download' | 'alert' | 'check' | 'arrow' | 'file' | 'users' | 'play'> = {
+  login: 'login',
+  logout: 'login',
+  update_pengaturan: 'settings',
+  tambah_kelompok: 'plus',
+  edit_kelompok: 'edit',
+  hapus_kelompok: 'trash',
+  tambah_soal: 'plus',
+  hapus_soal: 'trash',
+  reorder_soal: 'arrow',
+  ubah_penetapan_kelompok: 'edit',
+  simpan_penilaian_esai: 'check',
+  export_excel: 'download',
+  mulai_ujian: 'play',
+  selesai_ujian: 'check',
+  pelanggaran: 'alert',
+};

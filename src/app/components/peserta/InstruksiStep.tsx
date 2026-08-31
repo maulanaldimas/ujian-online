@@ -1,17 +1,19 @@
 'use client';
 
 import { PageBackground, Card, Button } from '@/app/components/ui';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, AlertTriangle } from 'lucide-react';
 import CardHeader from './CardHeader';
 
 type Props = {
   jumlahSoal: number;
   durasiDetik: number;
   sedangMenyimpan: boolean;
+  peringatan: string[];
+  blokir: boolean;
   onMulai: () => void;
 };
 
-export default function InstruksiStep({ jumlahSoal, durasiDetik, sedangMenyimpan, onMulai }: Props) {
+export default function InstruksiStep({ jumlahSoal, durasiDetik, sedangMenyimpan, peringatan, blokir, onMulai }: Props) {
   return (
     <PageBackground className="flex items-center justify-center p-5">
       <Card className="w-full max-w-lg overflow-hidden">
@@ -57,8 +59,21 @@ export default function InstruksiStep({ jumlahSoal, durasiDetik, sedangMenyimpan
             </li>
           </ul>
 
-          <Button className="w-full" onClick={onMulai} disabled={sedangMenyimpan}>
-            {sedangMenyimpan ? 'Menyiapkan...' : 'Mulai Sekarang'}
+          {peringatan.length > 0 && (
+            <div className="mb-5 space-y-2">
+              {peringatan.map((p, i) => (
+                <div key={i} className={`flex items-start gap-2 text-sm rounded-xl px-3 py-2.5 ${
+                  blokir ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-800'
+                }`}>
+                  <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+                  <span>{p}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <Button className="w-full" onClick={onMulai} disabled={sedangMenyimpan || blokir}>
+            {blokir ? 'Ganti Perangkat untuk Melanjutkan' : sedangMenyimpan ? 'Menyiapkan...' : 'Mulai Sekarang'}
           </Button>
         </div>
       </Card>

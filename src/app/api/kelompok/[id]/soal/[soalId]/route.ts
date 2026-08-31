@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { logAktivitas } from '@/lib/activity-log';
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string; soalId: string }> }) {
   try {
@@ -20,6 +21,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         teks: body.teks,
         tipe: body.tipe,
         pilihan: body.pilihan ? JSON.stringify(body.pilihan) : undefined,
+        gambar: body.gambar !== undefined ? body.gambar : undefined,
         urutan: body.urutan,
       },
     });
@@ -43,8 +45,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string; soalId: string }> }) {
   try {
-    const { soalId } = await params;
+    const { id, soalId } = await params;
     await prisma.soal.delete({ where: { id: soalId } });
+    logAktivitas({ aksi: 'hapus_soal', entitas: 'soal', entitasId: soalId, detail: `Soal ${soalId} dihapus dari kelompok ${id}` });
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error('DELETE /api/kelompok/[id]/soal/[soalId] error:', err);

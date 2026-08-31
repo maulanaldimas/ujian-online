@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --font-display: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
@@ -121,3 +123,153 @@ body {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
+
+/* ============================= DARK MODE ============================= */
+/* Strategi: daftar override kelas literal (bg-white, text-slate-*, dst.)
+   yang dipakai di halaman. Specificity .dark .<kelas> menang atas <kelas>. */
+
+.dark {
+  --background: #0b1220;
+  --foreground: #e2e8f0;
+  --color-bg-start: #0b1120;
+  --color-bg-end: #0e1828;
+  --color-field-bg: #0d1626;
+  color-scheme: dark;
+}
+
+.dark body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.dark ::selection {
+  background: rgb(125 211 252 / 0.25);
+}
+
+.dark :focus-visible {
+  outline-color: #2dd4bf;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: #0b1220;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #2a3a50;
+  border-color: #0b1220;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #3c506b;
+}
+
+.dark .skeleton {
+  background: linear-gradient(90deg, #16233c 25%, #1e304d 50%, #16233c 75%);
+  background-size: 200% 100%;
+}
+
+/* --- Permukaan --- */
+.dark .bg-white { background-color: #111c32; }
+.dark .bg-white\/90 { background-color: rgb(17 28 50 / 0.92); }
+.dark .bg-white\/80 { background-color: rgb(17 28 50 / 0.85); }
+.dark .bg-white\/70 { background-color: rgb(17 28 50 / 0.75); }
+.dark .bg-white\/50 { background-color: rgb(17 28 50 / 0.55); }
+.dark .bg-white\/40 { background-color: rgb(17 28 50 / 0.45); }
+.dark .bg-slate-50 { background-color: #0f1a2e; }
+.dark .bg-slate-100 { background-color: #16233c; }
+.dark .bg-slate-200 { background-color: #1e304d; }
+.dark .bg-slate-50\/50 { background-color: rgba(15, 26, 46, 0.55); }
+.dark .bg-slate-100\/50 { background-color: rgba(22, 35, 60, 0.55); }
+.dark .bg-slate-100\/60 { background-color: rgba(22, 35, 60, 0.65); }
+.dark .bg-slate-100\/80 { background-color: rgba(22, 35, 60, 0.82); }
+.dark .bg-navy-50 { background-color: #101a2c; }
+.dark .bg-teal-50 { background-color: #0e2a30; }
+.dark .bg-amber-50 { background-color: #2a2214; }
+.dark .bg-green-50 { background-color: #122c20; }
+.dark .bg-red-50 { background-color: #2c1416; }
+.dark .bg-red-100 { background-color: #3b1c20; }
+.dark .bg-blue-50 { background-color: #142438; }
+.dark .bg-purple-50 { background-color: #241a33; }
+.dark .bg-orange-50 { background-color: #2a1f14; }
+.dark .bg-teal-100 { background-color: #0f3840; }
+.dark .bg-amber-100 { background-color: #3a2d16; }
+.dark .bg-green-100 { background-color: #163d2b; }
+.dark .bg-blue-100 { background-color: #1a3050; }
+
+/* --- Teks --- */
+.dark .text-navy-950 { color: #cbd5e1; }
+.dark .text-navy-900 { color: #e2e8f0; }
+.dark .text-navy-800 { color: #cbd5e1; }
+.dark .text-navy-700 { color: #cbd5e1; }
+.dark .text-navy-600 { color: #b6c2d4; }
+.dark .text-navy-500 { color: #a3b0c2; }
+.dark .text-slate-900 { color: #e2e8f0; }
+.dark .text-slate-800 { color: #cbd5e1; }
+.dark .text-slate-700 { color: #cbd5e1; }
+.dark .text-slate-600 { color: #aeb9c9; }
+.dark .text-slate-500 { color: #94a3b8; }
+.dark .text-slate-400 { color: #7c8aa0; }
+.dark .text-slate-300 { color: #64748b; }
+.dark .text-teal-600 { color: #2dd4bf; }
+.dark .text-teal-700 { color: #5eead4; }
+.dark .text-teal-800 { color: #99f6e4; }
+.dark .text-teal-900 { color: #ccfbf1; }
+.dark .text-teal-300 { color: #5eead4; }
+.dark .text-amber-700 { color: #fcd34d; }
+.dark .text-amber-600 { color: #fbbf24; }
+.dark .text-red-600 { color: #f87171; }
+.dark .text-red-500 { color: #f87171; }
+.dark .text-red-700 { color: #fca5a5; }
+.dark .text-green-700 { color: #4ade80; }
+.dark .text-green-600 { color: #4ade80; }
+.dark .text-blue-700 { color: #93c5fd; }
+.dark .text-purple-700 { color: #d8b4fe; }
+.dark .text-orange-700 { color: #fdba74; }
+
+/* --- Border --- */
+.dark .border-slate-100 { border-color: #16233c; }
+.dark .border-slate-200 { border-color: #1e304d; }
+.dark .border-slate-300 { border-color: #2a3a50; }
+.dark .border-slate-200\/70 { border-color: rgb(30 48 77 / 0.85); }
+.dark .border-slate-100\/50 { border-color: rgba(22, 35, 60, 0.6); }
+.dark .border-slate-100\/60 { border-color: rgba(22, 35, 60, 0.65); }
+.dark .border-navy-100 { border-color: #1e304d; }
+.dark .border-red-200 { border-color: #3b1c20; }
+.dark .border-red-300 { border-color: #4b262c; }
+.dark .border-teal-100 { border-color: #0f3840; }
+.dark .border-green-200 { border-color: #163d2b; }
+.dark .border-amber-200 { border-color: #3a2d16; }
+.dark .border-blue-200 { border-color: #1a3050; }
+.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]) { border-color: #16233c; }
+.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]) { border-color: #1e304d; }
+.dark .ring-slate-200 { --tw-ring-color: #1e304d; }
+
+/* --- State hover (umum) --- */
+.dark .hover\:bg-slate-50:hover { background-color: #16233c; }
+.dark .hover\:bg-slate-100:hover { background-color: #1e304d; }
+.dark .hover\:bg-slate-200:hover { background-color: #27405f; }
+.dark .hover\:bg-white:hover { background-color: #16233c; }
+.dark .hover\:border-slate-300:hover { border-color: #3c506b; }
+.dark .hover\:border-slate-400:hover { border-color: #5d7a9e; }
+.dark .hover\:ring-slate-300:hover { --tw-ring-color: #2a3a50; }
+.dark .hover\:text-slate-600:hover { color: #aeb9c9; }
+.dark .hover\:text-slate-700:hover { color: #cbd5e1; }
+.dark .hover\:text-navy-900:hover { color: #e2e8f0; }
+.dark .hover\:bg-red-50:hover { background-color: #2c1416; }
+.dark .hover\:bg-green-50:hover { background-color: #122c20; }
+.dark .hover\:bg-amber-50:hover { background-color: #2a2214; }
+.dark .hover\:bg-teal-50:hover { background-color: #0e2a30; }
+
+/* --- Input terfokus --- */
+.dark .focus\:bg-white:focus { background-color: #111c32; }
+.dark .focus\:border-teal-600:focus { border-color: #2dd4bf; }
+
+/* --- Recharts (dashboard) --- */
+.dark .recharts-cartesian-grid line { stroke: #1e304d; }
+.dark .recharts-cartesian-axis-tick text { fill: #7c8aa0; }
+.dark .recharts-legend-item-text { color: #cbd5e1 !important; }
+.dark .recharts-default-tooltip {
+  background-color: #111c32 !important;
+  border-color: #1e304d !important;
+  box-shadow: 0 8px 24px -6px rgb(0 0 0 / 0.5);
+}
+.dark .recharts-default-tooltip .recharts-tooltip-label { color: #e2e8f0; }
+.dark .recharts-tooltip-item { color: #cbd5e1 !important; }

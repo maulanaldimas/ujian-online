@@ -19,6 +19,7 @@ import FormStep, { type DataDiri } from '@/app/components/peserta/FormStep';
 import InstruksiStep from '@/app/components/peserta/InstruksiStep';
 import UjianScreen from '@/app/components/peserta/UjianScreen';
 import SelesaiScreen from '@/app/components/peserta/SelesaiScreen';
+import { peringatanAntiCheat, kunciTab, bebaskanKunci, deteksiPrivatMode } from '@/lib/anti-cheat';
 
 const SESSION_KEY = 'ujian_pesertaId';
 
@@ -58,6 +59,11 @@ export default function Home() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<(() => void) | null>(null);
   const [confirmMessage, setConfirmMessage] = useState('');
+  const [koneksiSse, setKoneksiSse] = useState<'terhubung' | 'putus' | null>(null);
+  const [peringatanAnti, setPeringatanAnti] = useState<string[]>([]);
+  const [blokirPerangkat, setBlokirPerangkat] = useState(false);
+  const [pesanAdmin, setPesanAdmin] = useState('');
+  const pesanDiabaikanRef = useRef('');
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const faceDetectorRef = useRef<FaceDetector | null>(null);
@@ -72,6 +78,8 @@ export default function Home() {
   const sudahSubmitRef = useRef(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const debounceSimpanRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const putusWaktuRef = useRef<number | null>(null);
+  const sedangResumeRef = useRef(false);
 
   function tanya(pesan: string, onYa: () => void) {
     setConfirmMessage(pesan);
@@ -257,6 +265,7 @@ export default function Home() {
         }),
       });
       if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+      bebaskanKunci();
       setStep(STATUS.SELESAI);
     } catch (err) {
       toast('Gagal menyimpan jawaban. Cek koneksi.', 'red');
@@ -310,6 +319,115 @@ export default function Home() {
     }, 1000);
     return () => clearInterval(interval);
   }, [step, submitAkhir]);
+
+  useEffect(() => {
+    if (step !== 'ujian' || !docIdRef.current) return;
+    const id = docIdRef.current;
+    const es = new EventSource(`/api/peserta/${id}/stream`);
+    setKoneksiSse('terhubung');
+
+    es.addEventListener('sync', (e) => {
+      if (sudahSubmitRef.current) return;
+      try {
+        const data = JSON.parse((e as MessageEvent).data);
+        if (data.waktuMulai) {
+          const elapsed = Math.floor((Date.now() - new Date(data.waktuMulai).getTime()) / 1000);
+          const sisaServer = Math.max(0, DURASI_UJIAN_DETIK - elapsed);
+          setWaktuTersisa((prev) => {
+            if (Math.abs(prev - sisaServer) > 5) return sisaServer;
+            return prev;
+          });
+        }
+      } catch {}
+    });
+
+    es.addEventListener('pesan', (e) => {
+      if (sudahSubmitRef.current) return;
+      try {
+        const data = JSON.parse((e as MessageEvent).data);
+        if (data.pesan && data.pesan !== pesanDiabaikanRef.current) {
+          setPesanAdmin(String(data.pesan));
+        }
+      } catch {}
+    });
+
+    es.addEventListener('status', (e) => {
+      if (sudahSubmitRef.current) return;
+      try {
+        const data = JSON.parse((e as MessageEvent).data);
+        if (data.status !== STATUS.SEDANG_UJIAN) {
+          sudahSubmitRef.current = true;
+          if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+          setStep(STATUS.SELESAI);
+        }
+      } catch {}
+    });
+
+    es.onerror = () => {
+      if (putusWaktuRef.current === null) putusWaktuRef.current = Date.now();
+      setKoneksiSse('putus');
+    };
+    es.onopen = () => {
+      setKoneksiSse('terhubung');
+      if (putusWaktuRef.current !== null && !sedangResumeRef.current && docIdRef.current) {
+        sedangResumeRef.current = true;
+        const offlineDetik = Math.floor((Date.now() - putusWaktuRef.current) / 1000);
+        putusWaktuRef.current = null;
+        apiFetch(`/api/peserta/${docIdRef.current}/resume`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ offlineDetik }),
+        })
+          .then((r) => r.ok ? r.json() : null)
+          .then((data) => {
+            if (data && data.granted > 0) {
+              setWaktuTersisa((prev) => prev + data.granted);
+              toast(`Koneksi pulih. Waktu kerugian dipulihkan ${data.granted} detik.`, 'green');
+            } else if (data && data.sisaGrace === 0 && offlineDetik > 0) {
+              toast('Koneksi pulih. Kuota waktu pemulihan sudah habis.', 'amber');
+            }
+          })
+          .catch(() => {})
+          .finally(() => { sedangResumeRef.current = false; });
+      }
+    };
+
+    return () => es.close();
+  }, [step]);
+
+  useEffect(() => {
+    if (step !== 'instruksi') return;
+    let aktif = true;
+    const hasil = peringatanAntiCheat();
+    setBlokirPerangkat(hasil.blokir);
+    setPeringatanAnti(hasil.peringatan);
+    deteksiPrivatMode().then((privat) => {
+      if (!aktif) return;
+      if (privat) setPeringatanAnti((prev) => [...prev, 'Mode penyamaran/privasi terdeteksi. Disarankan memakai mode normal agar pengawasan berjalan optimal.']);
+    });
+    return () => { aktif = false; };
+  }, [step]);
+
+  useEffect(() => {
+    if (step !== 'ujian' || !docIdRef.current) return;
+    const kunci = kunciTab();
+    const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('ujian_anti_curang') : null;
+    bc?.postMessage({ tipe: 'tab_aktif' });
+    const onPesan = (e: MessageEvent) => {
+      if (e.data?.tipe === 'tab_aktif') {
+        catatPelanggaran('Membuka ujian di lebih dari satu tab');
+      }
+    };
+    bc?.addEventListener('message', onPesan);
+    if (kunci.sudahAda) {
+      catatPelanggaran('Membuka ujian di lebih dari satu tab');
+    }
+    return () => {
+      bc?.removeEventListener('message', onPesan);
+      bc?.close();
+      bebaskanKunci();
+    };
+  }, [step, catatPelanggaran]);
 
   useEffect(() => {
     if (step !== 'ujian') return;
@@ -664,6 +782,8 @@ export default function Home() {
           jumlahSoal={daftarSoal.length}
           durasiDetik={DURASI_UJIAN_DETIK}
           sedangMenyimpan={sedangMenyimpan}
+          peringatan={peringatanAnti}
+          blokir={blokirPerangkat}
           onMulai={mulaiUjianSekarang}
         />
       </>
@@ -680,6 +800,7 @@ export default function Home() {
           soalIndex={soalIndex}
           jawabanMap={jawabanMap}
           waktuTersisa={waktuTersisa}
+          koneksiSse={koneksiSse}
           keluarFullscreen={keluarFullscreen}
           namaPeserta={dataDiri.nama}
           errorKamera={errorKamera}
@@ -689,6 +810,8 @@ export default function Home() {
           pengaturanProctoring={pengaturanProctoring}
           sedangMenyimpan={sedangMenyimpan}
           showReview={showReview}
+          pesanAdmin={pesanAdmin}
+          onTutupPesanAdmin={() => { pesanDiabaikanRef.current = pesanAdmin; setPesanAdmin(''); }}
           videoRef={videoRef}
           canvasRef={canvasRef}
           onJawabanChange={handleJawabanChange}

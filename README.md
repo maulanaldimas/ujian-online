@@ -1,190 +1,170 @@
 # Ujian Online Rekrutmen
 
-Aplikasi ujian online untuk proses rekrutmen dan evaluasi karyawan, dibangun dengan **Next.js 16 (App Router)**, **Prisma ORM**, **SQLite** (dev) / **PostgreSQL** (produksi), dan **JWT authentication**. Sistem dilengkapi pengawasan proctoring (kamera, mikrofon, dan aktivitas layar) serta dashboard admin untuk memantau hasil.
+[![Next.js](https://img.shields.io/badge/Next.js%2016-000000?logo=nextdotjs&logoColor=white)](https://nextjs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS%204-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
+[![Prisma](https://img.shields.io/badge/Prisma-2D3748?logo=prisma&logoColor=white)](https://www.prisma.io)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org)
+[![Railway](https://img.shields.io/badge/Railway-0B0D0E?logo=railway&logoColor=white)](https://railway.app)
+[![Tests](https://img.shields.io/badge/tests-vitest-6DA13F?logo=vitest&logoColor=white)](https://vitest.dev)
 
-## Fitur
+Sistem **ujian online untuk rekrutmen & evaluasi karyawan** dengan pengawasan proctoring real-time (kamera, mikrofon, dan aktivitas layar), dashboard admin untuk memantau peserta, dan alur peserta yang lengkap — dari pendaftaran hingga hasil.
+
+> **Demo live:** https://ujian-app-production.up.railway.app
+>
+> **Login admin demo:** `admin@ujian.com` / `admin123`
+>
+> Halaman peserta tersedia di `/ujian` (silakan daftar sebagai peserta, lalu diminta menunggu penugasan kelompok oleh admin). Dashboard berisi data contoh sehingga semua fitur bisa langsung dieksplorasi.
+
+## Fitur Unggulan
 
 ### Peserta
-- Alur ujian bertahap: persetujuan (consent) → data diri → instruksi → pengerjaan → selesai.
-- Mode layar penuh selama ujian; keluar dari mode ini tercatat sebagai pelanggaran.
-- Proctoring real-time:
-  - Deteksi wajah (kosong / lebih dari satu wajah) via MediaPipe.
-  - Deteksi suara keras via Web Audio API.
-  - Deteksi berpindah tab, menyalin-tempel, dan pintasan keyboard terlarang.
-- Pengacakan urutan soal dan navigasi bebas antar soal.
-- Auto-save jawaban secara berkala + saat meninggalkan halaman.
-- Submit otomatis saat waktu habis.
+
+- Alur bertahap: **persetujuan (consent)** → data diri → instruksi → pengerjaan → selesai.
+- **Proctoring real-time** (MediaPipe + Web Audio):
+  - Deteksi wajah kosong / wajah ganda via kamera.
+  - Deteksi suara keras via mikrofon.
+  - Deteksi pindah tab, keluar layar penuh, salin-tempel, dan pintasan terlarang (F12, Ctrl+U, dll).
+  - Anti-cheat multi-tab via `BroadcastChannel` + kunci sesi per tab.
+- **Gambar pada soal** — soal PG/esai dapat menyertakan gambar.
+- **Resume & grace period** — saat koneksi terputus, timer tidak merugikan peserta: waktu offline otomatis dipulihkan (diatur admin), dan indikator sinkronisasi real-time ditampilkan.
+- Pengacakan urutan soal, navigasi bebas, auto-save berkala, dan submit otomatis saat waktu habis.
+- Penerimaan **pesan real-time dari pengawas** selama ujian.
 
 ### Admin (HR)
-- **Dashboard** — daftar peserta, pencarian, filter status, pengurutan, detail jawaban, log pelanggaran beserta foto, serta ekspor hasil ke Excel (`.xlsx`).
-- **Kelompok Soal** (khusus admin) — buat/edit/hapus kelompok soal, tambah soal di dalamnya, atur urutan, impor dari Excel, kelola kunci jawaban pilihan ganda.
-- **Pengaturan** — aktif/nonaktifkan deteksi kamera & mikrofon untuk ujian berikutnya.
-- **Logout** dan kontrol akses berbasis peran (`admin` / lainnya).
+
+- **Dashboard hasil** — pencarian, filter, urutan, statistik ringkas, grafik (skor, distribusi, pelanggaran/waktu), tampilan detail jawaban + log pelanggaran, ekspor PDF per peserta, dan ekspor Excel.
+- **Kontrol ujian live** — tambah waktu (+5/+15 menit), akhiri ujian paksa, dan kirim pesan ke peserta saat sedang mengerjakan.
+- **Kelompok soal** — kelola kelompok & soal, import dari Excel (header fleksibel + laporan baris gagal + kolom gambar), template download, gambar per soal, dan copy kelompok.
+- **Aksi massal peserta** — import via Excel, ekspor, hapus/petakan kelompok secara bulk.
+- **Log aktivitas** — jejak semua aksi admin & peristiwa ujian.
+- **Dark mode + tema terang** — dua mode dengan preferensi tersimpan per pengguna.
+- Kontrol akses berbasis peran (`admin`).
 
 ## Teknologi
 
 | Lapisan | Teknologi |
 | --- | --- |
-| Framework | Next.js 16 (App Router, Turbopack) |
-| UI | React 19 + Tailwind CSS 4 |
-| ORM | Prisma 7 (SQLite dev / PostgreSQL prod) |
-| Database | SQLite 3 (dev) / PostgreSQL 16 (Docker & Railway) |
-| Auth | JWT (jose) + bcryptjs |
-| Proctoring | MediaPipe Tasks Vision (deteksi wajah) |
-| Ekspor | SheetJS (`xlsx`) |
-| Deploy | Docker + Railway + GitHub Actions CI/CD |
-
-## Persyaratan
-
-- Node.js 20 atau lebih baru.
+| Framework | Next.js 16 (App Router, Turbopack, Server & Client Components) |
+| Bahasa | TypeScript |
+| UI | React 19, Tailwind CSS 4, lucide-react, Recharts |
+| ORM / DB | Prisma 7 · PostgreSQL (produksi) · SQLite (dev) |
+| Auth | JWT (jose, httpOnly cookie) + bcryptjs |
+| Proctoring | MediaPipe Tasks Vision, Web Audio API, BroadcastChannel |
+| Ekspor | SheetJS (`xlsx`), jsPDF + autotable |
+| Integrasi | SSE (SSE stream), REST API |
+| Infra | Docker multi-stage, Railway, GitHub Actions CI/CD |
 
 ## Menjalankan Proyek
 
+### Prasyarat
+
+- Node.js 20+
+- (Opsional) Docker untuk mode PostgreSQL lokal.
+
 ### Development (SQLite)
 
-1. **Install dependensi**
+```bash
+npm install
+cp .env.example .env
+npx prisma db push
+npx tsx prisma/seed.ts          # membuat user admin
+npx tsx prisma/seed-demo.ts     # (opsional) data contoh untuk demo
 
-   ```bash
-   npm install
-   ```
+npm run dev
+```
 
-2. **Siapkan variabel lingkungan**
-
-   ```bash
-   cp .env.example .env
-   ```
-
-3. **Jalankan migrasi database & seed**
-
-   ```bash
-   npx prisma migrate dev --name init
-   npx prisma db seed
-   ```
-
-   Login admin default: `admin@ujian.com` / `admin123`
-
-4. **Jalankan mode pengembangan**
-
-   ```bash
-   npm run dev
-   ```
-
-   Buka [http://localhost:3000](http://localhost:3000). Halaman peserta di `/ujian`, dashboard admin di `/dashboard`.
+- Peserta: `http://localhost:3000/ujian`
+- Admin: `http://localhost:3000/dashboard` — login `admin@ujian.com` / `admin123`
 
 ### Docker (PostgreSQL)
 
-1. **Buat file `.env` dari template**
-
-   ```bash
-   cp .env.example .env
-   # Edit .env: set DATABASE_URL dan JWT_SECRET
-   ```
-
-2. **Jalankan dengan Docker Compose**
-
-   ```bash
-   docker compose up -d --build
-   ```
-
-   Aplikasi berjalan di `http://localhost:3000` dengan PostgreSQL di port 5432.
+```bash
+cp .env.example .env   # isi DATABASE_URL & JWT_SECRET
+docker compose up -d --build
+```
 
 ### Deploy ke Railway
 
-1. Push repo ke GitHub
-2. Hubungkan repo ke Railway
-3. Set environment variables di Railway dashboard:
-   - `DATABASE_URL` — Railway PostgreSQL connection string (otomatis dari service PostgreSQL)
-   - `JWT_SECRET` — secret key yang kuat
-4. Deploy otomatis via GitHub Actions atau Railway auto-deploy
+Repo ini sudah berisi **infrastructure-as-code** (`.railway/railway.ts`):
 
-## Struktur Database (Prisma)
+1. Push repo ke GitHub dan hubungkan sebagai sumber deploy.
+2. Railway otomatis menyediakan PostgreSQL; `DATABASE_URL` & `JWT_SECRET` di-referensikan dari service config.
+3. `Dockerfile` melakukan `prisma db push` + menjalankan build production saat start.
+
+## Struktur Database
 
 | Model | Keterangan |
 | --- | --- |
-| `User` | Admin users (email, password hash, role) |
-| `KelompokSoal` | Kelompok soal (nama, level, divisi, departemen) |
-| `Soal` | Soal ujian (teks, tipe, pilihan, urutan) |
-| `KunciJawaban` | Kunci jawaban pilihan ganda |
-| `PesertaUjian` | Data peserta, jawaban, status, log pelanggaran |
+| `User` | Admin users |
+| `KelompokSoal` | Kelompok soal (level/divisi/departemen) |
+| `Soal` | Soal: teks, tipe (PG/esai), pilihan, gambar, urutan |
+| `KunciJawaban` | Kunci pilihan ganda |
+| `PesertaUjian` | Data peserta, jawaban, status, waktu, pelanggaran, pesan admin, grace |
 | `PenilaianEsai` | Skor esai manual per peserta |
-| `Pengaturan` | Pengaturan proctoring (kamera & audio) |
-
-## Struktur Kode
-
-```
-src/
-├── app/
-│   ├── api/                    # API routes (REST)
-│   │   ├── auth/               # Login, me, logout
-│   │   ├── peserta/            # CRUD peserta + status
-│   │   ├── kelompok/           # CRUD kelompok + soal + reorder
-│   │   ├── pengaturan/         # Pengaturan proctoring
-│   │   └── penilaian/          # Penilaian esai
-│   ├── components/
-│   │   ├── ui.tsx              # Komponen UI dasar
-│   │   ├── LoginGate.tsx       # Gerbang autentikasi JWT
-│   │   └── peserta/            # Komponen alur peserta
-│   │       ├── ConsentStep.tsx
-│   │       ├── FormStep.tsx
-│   │       ├── InstruksiStep.tsx
-│   │       ├── MenungguStep.tsx
-│   │       ├── UjianScreen.tsx
-│   │       └── SelesaiScreen.tsx
-│   ├── dashboard/
-│   │   ├── page.tsx            # Dashboard hasil ujian
-│   │   ├── kelompok/page.tsx   # Kelola kelompok soal
-│   │   └── pengaturan/page.tsx # Pengaturan proctoring
-│   ├── ujian/page.tsx          # Halaman peserta
-│   ├── layout.tsx
-│   ├── globals.css
-│   ├── error.tsx
-│   └── not-found.tsx
-├── lib/
-│   ├── auth.ts                 # JWT utilities (jose)
-│   ├── prisma.ts               # Prisma client singleton
-│   ├── constants.ts            # Konstanta bersama
-│   └── utils.ts                # Fungsi utilitas & tipe data
-├── prisma/
-│   ├── schema.prisma           # Database schema
-│   ├── config.ts               # Prisma config
-│   ├── seed.ts                 # Seed admin user
-│   └── migrations/             # Database migrations
-├── Dockerfile                  # Multi-stage Node.js build
-├── docker-compose.yml          # App + PostgreSQL
-├── railway.json                # Railway deploy config
-└── .github/workflows/ci.yml   # CI/CD pipeline
-```
-
-## Script
-
-| Script | Fungsi |
-| --- | --- |
-| `npm run dev` | Menjalankan server pengembangan |
-| `npm run build` | Membuat build produksi |
-| `npm start` | Menjalankan build produksi |
-| `npm run lint` | Menjalankan ESLint |
-| `npx prisma migrate dev` | Jalankan migrasi database |
-| `npx prisma db seed` | Seed data awal |
-| `npx vitest run` | Jalankan tests |
+| `Pengaturan` | Pengaturan proctoring & grace period |
+| `ActivityLog` | Log aktivitas admin & sistem |
 
 ## API Routes
 
 | Endpoint | Method | Keterangan |
 | --- | --- | --- |
-| `/api/auth/login` | POST | Login admin |
-| `/api/auth/me` | GET | Cek sesi aktif |
-| `/api/auth/logout` | POST | Logout |
-| `/api/peserta` | GET/POST | List & buat peserta |
-| `/api/peserta/[id]` | GET/PUT/DELETE | Detail, update, hapus peserta |
-| `/api/peserta/[id]/status` | GET | Cek status peserta |
-| `/api/kelompok` | GET/POST | List & buat kelompok soal |
-| `/api/kelompok/[id]` | GET/PUT/DELETE | Detail, update, hapus kelompok |
+| `/api/auth/login` · `/me` · `/logout` | POST/GET | Autentikasi admin (JWT httpOnly cookie) |
+| `/api/peserta` | GET/POST | List & daftar peserta |
+| `/api/peserta/[id]` | GET/PUT/DELETE | Detail, update (jawaban/status), hapus |
+| `/api/peserta/[id]/status` | GET | Cek status & grup |
+| `/api/peserta/[id]/stream` | GET | SSE: sinkron timer, pesan admin, status |
+| `/api/peserta/[id]/kontrol` | POST | Tambah waktu / akhiri ujian / kirim pesan |
+| `/api/peserta/[id]/resume` | POST | Pulihkan waktu setelah terputus (grace) |
+| `/api/peserta/bulk` | POST | Import peserta via Excel |
+| `/api/peserta/bulk-action` | POST | Hapus / petakan kelompok massal |
+| `/api/kelompok` | GET/POST | List & buat kelompok |
+| `/api/kelompok/[id]` | GET/PUT/DELETE | Detail / update / hapus kelompok |
 | `/api/kelompok/[id]/soal` | GET/POST | List & tambah soal |
-| `/api/kelompok/[id]/soal/[soalId]` | PUT/DELETE | Update & hapus soal |
+| `/api/kelompok/[id]/soal/[soalId]` | PUT/DELETE | Update / hapus soal |
 | `/api/kelompok/[id]/soal/reorder` | POST | Ubah urutan soal |
-| `/api/pengaturan` | GET/PUT | Pengaturan proctoring |
+| `/api/kelompok/[id]/copy` | POST | Duplikasi kelompok + soal |
+| `/api/pengaturan` | GET/PUT | Pengaturan proctoring & grace |
 | `/api/penilaian` | GET/POST | Penilaian esai |
+| `/api/activity-log` | GET | Log aktivitas admin |
 
-## Kontribusi
+## Struktur Kode
 
-Bagi tim pengembangan: buat branch fitur, lakukan perubahan, lalu ajukan pull request. Seluruh perubahan harus lolos `npx tsc --noEmit`, `npx vitest run`, dan `npx next build` sebelum di-merge.
+```
+src/
+├─ app/
+│  ├─ api/                 # REST + SSE endpoints
+│  │  ├─ auth/             # login, me, logout
+│  │  ├─ peserta/          # CRUD + status + stream + kontrol + resume + bulk
+│  │  ├─ kelompok/         # CRUD + soal + reorder + copy
+│  │  ├─ pengaturan/       # proctoring & grace settings
+│  │  ├─ penilaian/        # skor esai
+│  │  └─ activity-log/     # log admin
+│  ├─ components/          # UI, Sidebar, ThemeToggle, InputGambar, charts, modals
+│  │  └─ peserta/          # ConsentStep, FormStep, InstruksiStep, UjianScreen, dll.
+│  ├─ dashboard/           # Dashboard hasil, kelompok, pengaturan, aktivitas
+│  ├─ ujian/page.tsx       # Halaman peserta (proctoring + SSE + resume)
+│  ├─ layout.tsx           # Root layout + anti-FOUC theme script
+│  └─ globals.css          # Tailwind 4 + dark-mode remap layer
+├─ lib/
+│  ├─ auth.ts              # JWT (jose)
+│  ├─ prisma.ts            # Prisma client singleton
+│  ├─ anti-cheat.ts        # kunci sesi multi-tab, peringatan
+│  ├─ theme.ts             # manajemen tema (dark/light)
+│  ├─ activity-log.ts      # pencatatan aktivitas
+│  ├─ constants.ts         # konfigurasi ujian
+│  └─ utils.ts             # parsing import Excel, scoring, dll.
+└─ prisma/
+   ├─ schema.prisma
+   ├─ seed.ts              # user admin
+   └─ seed-demo.ts         # data contoh
+```
+
+## CI/CD & Kualitas
+
+- **GitHub Actions** (`.github/workflows/ci.yml`): `tsc`, `vitest`, `next build`, kemudian build & smoke-test image Docker.
+- **Prasyarat kontribusi:** tiap perubahan harus lolos `npx tsc --noEmit`, `npx vitest run`, dan `npx next build`.
+
+## Lisensi
+
+[MIT](./LICENSE)
