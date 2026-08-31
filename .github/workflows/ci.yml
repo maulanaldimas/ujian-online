@@ -52,6 +52,7 @@ jobs:
           sleep 5
           docker run --rm \
             --link test-db:db \
+            -p 3000:3000 \
             -e DATABASE_URL=postgresql://ujian:testpass@db:5432/ujian_rekrutmen \
             -e JWT_SECRET=test-secret \
             ujian-online &
