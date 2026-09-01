@@ -7,6 +7,7 @@ RUN npm ci --ignore-scripts
 # ---------- Stage 2: Builder ----------
 FROM node:20-alpine AS builder
 WORKDIR /app
+ARG APP_BASE_PATH=""
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
@@ -15,15 +16,18 @@ RUN sed -i 's/provider = "sqlite"/provider = "postgresql"/' prisma/schema.prisma
 RUN printf 'import { PrismaPg } from "@prisma/adapter-pg";\nimport { PrismaClient } from "@prisma/client";\nconst globalForPrisma = globalThis as unknown as { prisma: PrismaClient };\nfunction createClient() {\n  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });\n  return new PrismaClient({ adapter });\n}\nexport const prisma = globalForPrisma.prisma || createClient();\nif (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;\n' > src/lib/prisma.ts
 
 RUN npx prisma generate
-RUN npm run build
+RUN APP_BASE_PATH=$APP_BASE_PATH NEXT_PUBLIC_APP_BASE_PATH=$APP_BASE_PATH npm run build
 
 # ---------- Stage 3: Runner ----------
 FROM node:20-alpine AS runner
 WORKDIR /app
 
+ARG APP_BASE_PATH=""
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
+ENV APP_BASE_PATH=$APP_BASE_PATH
+ENV NEXT_PUBLIC_APP_BASE_PATH=$APP_BASE_PATH
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs

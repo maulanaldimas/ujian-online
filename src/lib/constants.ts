@@ -1,4 +1,4 @@
-export const LOGO_SRC = '/logo.png?v=3';
+export const LOGO_SRC = `${process.env.NEXT_PUBLIC_APP_BASE_PATH || ''}/logo.png?v=3`;
 export const NAMA_PERUSAHAAN = 'PT Sokka Tama Fiber';
 export const NAMA_PERUSAHAAN_PENDEK = 'Sokkatama';
 

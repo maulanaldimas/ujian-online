@@ -1,6 +1,7 @@
 import { Space_Grotesk, Inter } from "next/font/google";
 import type { ReactNode } from "react";
 import { LOGO_SRC, NAMA_PERUSAHAAN } from "@/lib/constants";
+import FetchProvider from "./components/FetchProvider";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -52,7 +53,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         />
       </head>
       <body className={`${spaceGrotesk.variable} ${inter.variable} antialiased`}>
-        {children}
+        <FetchProvider>
+          {children}
+        </FetchProvider>
       </body>
     </html>
   );
