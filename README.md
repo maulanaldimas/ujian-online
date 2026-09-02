@@ -10,11 +10,14 @@
 
 Sistem **ujian online untuk rekrutmen & evaluasi karyawan** dengan pengawasan proctoring real-time (kamera, mikrofon, dan aktivitas layar), dashboard admin untuk memantau peserta, dan alur peserta yang lengkap — dari pendaftaran hingga hasil.
 
-> **Demo live:** https://ujian-app-production.up.railway.app
+> **Demo live:** https://itsokkalink.tailbc5ae7.ts.net/ujian
 >
 > **Login admin demo:** `admin@ujian.com` / `admin123`
 >
-> Halaman peserta tersedia di `/ujian` (silakan daftar sebagai peserta, lalu diminta menunggu penugasan kelompok oleh admin). Dashboard berisi data contoh sehingga semua fitur bisa langsung dieksplorasi.
+> - **Admin:** https://itsokkalink.tailbc5ae7.ts.net/ujian/dashboard
+> - **Peserta:** `/ujian` (silakan daftar sebagai peserta, lalu diminta menunggu penugasan kelompok oleh admin).
+>
+> > Demo ini di-hosting dari komputer pribadi (Docker + Tailscale Funnel + Caddy) dan hanya aktif saat server daring.
 
 ## Fitur Unggulan
 
