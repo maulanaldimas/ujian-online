@@ -1,39 +1,19 @@
 'use client';
 
 import { Sidebar } from '@/app/components/Sidebar';
-import { useEffect, useState } from 'react';
-import type { AuthUser } from '@/app/components/LoginGate';
+import LoginGate from '@/app/components/LoginGate';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [checking, setChecking] = useState(true);
+  return (
+    <LoginGate>
+      {() => <DashboardShell>{children}</DashboardShell>}
+    </LoginGate>
+  );
+}
 
-  useEffect(() => {
-    fetch('/api/auth/me')
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((d) => setUser(d.user))
-      .catch(() => setUser(null))
-      .finally(() => setChecking(false));
-  }, []);
-
+function DashboardShell({ children }: { children: React.ReactNode }) {
   function handleLogout() {
     fetch('/api/auth/logout', { method: 'POST' }).then(() => window.location.reload());
-  }
-
-  if (checking) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-bg-start to-bg-end flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-teal-600 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-bg-start to-bg-end flex items-center justify-center">
-        <p className="text-sm text-slate-500">Sesi berakhir. <a href="/" className="text-teal-600 font-semibold hover:underline">Login ulang</a></p>
-      </div>
-    );
   }
 
   return (
